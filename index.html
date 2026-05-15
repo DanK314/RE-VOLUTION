@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="ko">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RE:VOLUTION</title>
+    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <script type="module" src="main.js" defer></script>
+</head>
+
+<body>
+    <div id="game-container">
+
+        <div id="main-screen" class="screen">
+            <h1 class="title">RE:VOLUTION</h1>
+            <div class="button-group">
+                <button id="start-btn">게임 시작</button>
+                <button id="settings-btn">설정</button>
+            </div>
+        </div>
+
+        <div id="game-screen" class="screen hidden">
+            <div class="ui-header">
+                <div class="stat">Lv. <span id="levelValue">1</span></div>
+                <div class="stat hp-stat">HP: <span id="hpValue">100 / 100</span></div>
+                <div class="stat exp-stat">EXP: <span id="expValue">0 / 50</span></div>
+            </div>
+            <div class="canvas-container">
+                <canvas id="gameCanvas" width="800" height="600"></canvas>
+            </div>
+            <div id="inventory-bar">
+                <div class="skill-slot" id="slot-1">
+                    <span class="key-hint">1</span>
+                    <div class="icon">🛡️</div>
+                    <div class="skill-name">패링</div>
+                </div>
+                <div class="skill-slot" id="slot-2">
+                    <span class="key-hint">2</span>
+                    <div class="icon">💨</div>
+                    <div class="skill-name">돌진</div>
+                </div>
+                <div class="skill-slot empty"></div>
+                <div class="skill-slot empty"></div>
+            </div>
+        </div>
+
+        <div id="game-over-screen" class="screen hidden">
+            <h1 class="game-over-title">YOU DIED</h1>
+            <div class="button-group">
+                <button id="revive-btn" class="danger-btn">부활</button>
+                <button id="to-main-btn" class="danger-btn">메인화면으로</button>
+            </div>
+        </div>
+
+    </div>
+</body>
+
+</html>
