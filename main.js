@@ -1,5 +1,5 @@
 // main.js
-import { Player, Enemy, Boss, Projectile } from './class.js';
+import { Player, Enemy, Boss_Wind, Projectile, Particle } from './class.js';
 import { applyPhysics } from './physics.js';
 import { drawMap, generateRPGMap, extractSpawners } from './map.js';
 
@@ -22,6 +22,7 @@ const dummyAsset = { image: {} };
 let player;
 let enemies = [];
 let projectiles = []; // 🔥 원거리 공격 탄환 배열
+let particles = []; //파티클!
 let spawnPoints = [];
 
 let gameAnimationFrame;
@@ -143,12 +144,12 @@ function startGame(isRevive = false) {
         player.isInvincible = false;
     }
 
-    // 몬스터 소환 (마지막 위치는 보스)
+    // 몬스터 소환
     enemies = spawnPoints.map(pos => {
         if (pos.type === 'boss') {
-            return new Boss(pos.x, pos.y);
+            return new Boss_Wind(pos.x, pos.y);
         } else {
-            return new Enemy(pos.x, pos.y);
+            return new Enemy(pos.x, pos.y,Math.random() > 0.3 ? 'slime' : 'rock');
         }
     });
 
@@ -183,7 +184,7 @@ function gameLoop() {
         // 체력이 다한 적 처리
         if (enemy.hp <= 0) {
             player.gainExp(enemy.expReward || 10);
-            if (enemy instanceof Boss) {
+            if (enemy instanceof Boss_Wind) {
                 player.hasDash = true;
                 player.hasUltimate = true;
             }
@@ -191,7 +192,7 @@ function gameLoop() {
         }
 
         // AI 행동 패턴 및 물리 엔진 처리 (클래스 내부 캡슐화)
-        if (enemy instanceof Boss) {
+        if (enemy instanceof Boss_Wind) {
             enemy.update(player, (p) => projectiles.push(p)); 
         } else {
             enemy.update(player); 
@@ -302,7 +303,26 @@ function gameLoop() {
         return proj.x > camera.x - 500 && proj.x < camera.x + canvas.width + 500 &&
                proj.y > camera.y - 500 && proj.y < camera.y + canvas.height + 500;
     });
-
+    if(player.isDashing){
+        for(let i = 0; i<50; i++){
+            particles.push(new Particle(
+                player.x + player.width/2 + Math.random()*30-15,
+                player.y+player.height/2+ Math.random()*5-2.5,
+                0,0.5,"#FFFFFF",1,1
+            ));
+        }
+    }
+    if(player.isUltActive){
+        for(let i = 0; i<50; i++){
+            particles.push(new Particle(player.x + player.width/2,
+                player.y+player.height/2,
+                (Math.random()-0.5)*20,(Math.random()-0.5)*20,"#00FFFF",1,1));
+        }
+    }
+    particles = particles.filter(p => {
+        p.update();
+        return p.life > 0; // 수명이 0보다 큰 애들만 살아남음
+    });
     // 5. 플레이어 기본 공격(좌클릭) 직사각형 판정
     if (player.isAttacking) {
         const pCenterX = player.x + player.width / 2;
@@ -354,6 +374,8 @@ function gameLoop() {
     // 8. 렌더링 (모든 그리기 로직)
     // ==========================================
     ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = "#92afaf"
+    ctx.fillRect(0,0,canvas.width, canvas.height)
     ctx.save();
     
     // 카메라 이동 적용
@@ -362,7 +384,7 @@ function gameLoop() {
     drawMap(ctx, dummyAsset);
 
     // 맵 -> 적 -> 투사체 -> 플레이어 순서대로 그림
-    const allEntities = [...enemies, ...projectiles, player];
+    const allEntities = [...enemies,...particles, ...projectiles, player];
     allEntities.forEach(entity => {
         if (entity && typeof entity.draw === 'function') {
             entity.draw(ctx);
