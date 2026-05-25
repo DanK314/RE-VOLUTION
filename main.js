@@ -54,16 +54,16 @@ window.addEventListener('mousemove', (e) => {
 
 window.addEventListener('mousedown', (e) => {
     if (!player || typeof isGameOver !== 'undefined' && isGameOver) return;
-    
+
     // 🔥 핵심: 클릭할 당시의 화면 좌표에 카메라 위치를 더해 '실제 맵(월드) 좌표'를 구함!
     const worldMouseX = screenMouse.x + (camera.x || 0);
     const worldMouseY = screenMouse.y + (camera.y || 0);
 
     // 구한 실제 맵 좌표를 스킬/공격 함수에 전달
     if (e.button === 0) {
-        player.attack(worldMouseX, worldMouseY); 
+        player.attack(worldMouseX, worldMouseY);
     } else if (e.button === 2) {
-        player.useSelectedSkill(worldMouseX, worldMouseY); 
+        player.useSelectedSkill(worldMouseX, worldMouseY);
     }
 });
 
@@ -118,7 +118,7 @@ function updateUI() {
         slot2.classList.remove('locked');
         slot2.querySelector('.icon').innerText = "🌬️"; // 바람 아이콘
         slot2.querySelector('.skill-name').innerText = "돌진";
-        
+
         // 돌진이 해금된 상태에서만 active 클래스 적용
         if (player.selectedSkill === 2) {
             slot2.classList.add('active');
@@ -149,7 +149,7 @@ function startGame(isRevive = false) {
         if (pos.type === 'boss') {
             return new Boss_Wind(pos.x, pos.y);
         } else {
-            return new Enemy(pos.x, pos.y,Math.random() > 0.3 ? 'slime' : 'rock');
+            return new Enemy(pos.x, pos.y, Math.random() > 0.3 ? 'slime' : 'rock');
         }
     });
 
@@ -164,239 +164,303 @@ function startGame(isRevive = false) {
 // main.js - gameLoop 함수 완전판 전체 코드
 
 function gameLoop() {
-    if (isGameOver) return; // 게임 오버 시 루프 중단
+    if (isGameOver) return;
 
-    // 1. 마우스 월드 좌표 갱신 (카메라 위치 반영)
+    // =========================
+    // 1. 마우스 월드 좌표
+    // =========================
     mouse.x = screenMouse.x + camera.x;
     mouse.y = screenMouse.y + camera.y;
 
-    // 🔥 2. 플레이어 업데이트 및 물리 적용
-    applyPhysics(player); // 대시 중이든 아니든 물리 엔진(좌표 이동)은 무조건 돌아가야 함!
-    
-    if (!player.isDashing) {
-        player.dashHitList = []; // 대시가 끝났을 때만 타격 목록 초기화
-    }
-    
-    player.update(keys, mouse,screenMouse, (p) => projectiles.push(p));
+    // =========================
+    // 2. 플레이어 물리 & 업데이트
+    // =========================
+    applyPhysics(player);
 
-    // 3. 적 업데이트 (보스 포함) 및 피격/패링/대시 공격 판정
+    if (!player.isDashing) {
+        player.dashHitList = [];
+    }
+
+    player.update(keys, mouse, screenMouse, (p) => projectiles.push(p));
+
+    // =========================
+    // 3. 적 업데이트 + 전투
+    // =========================
     enemies = enemies.filter(enemy => {
-        // 체력이 다한 적 처리
-        if (enemy.hp <= 0) {
+
+        // ❗ 1) 죽음 시작 트리거
+        if (enemy.hp <= 0 && !enemy.dying) {
             player.gainExp(enemy.expReward || 10);
             if (enemy instanceof Boss_Wind) {
                 player.hasDash = true;
                 player.hasUltimate = true;
             }
-            return false;
+            enemy.death?.();
         }
 
-        // AI 행동 패턴 및 물리 엔진 처리 (클래스 내부 캡슐화)
-        if (enemy instanceof Boss_Wind) {
-            enemy.update(player, (p) => projectiles.push(p)); 
-        } else {
-            enemy.update(player); 
-            applyPhysics(enemy);  
+        // ❗ 2) 완전 삭제 조건
+        if (enemy.isDead) return false;
+
+        // =========================
+        // AI / 물리 업데이트
+        // =========================
+        if (!enemy.dying) {
+            if (enemy instanceof Boss_Wind) {
+                enemy.update(player, (p) => projectiles.push(p));
+            } else {
+                enemy.update(player);
+                applyPhysics(enemy);
+            }
         }
 
-        // 플레이어와 적 사이의 거리 및 각도 계산
+        // =========================
+        // 전투 판정 (살아있는 적만)
+        // =========================
         const pCenterX = player.x + player.width / 2;
         const pCenterY = player.y + player.height / 2;
         const eCenterX = enemy.x + enemy.width / 2;
         const eCenterY = enemy.y + enemy.height / 2;
-        const dx = pCenterX - eCenterX; 
+
+        const dx = pCenterX - eCenterX;
         const dy = pCenterY - eCenterY;
         const dist = Math.sqrt(dx * dx + dy * dy);
 
-        // 🔥 [NEW] 대시(돌진) 관통 공격 판정
+        // -------------------------
+        // 대시 공격
+        // -------------------------
         if (player.isDashing && dist < 60) {
             if (!player.dashHitList) player.dashHitList = [];
-            
+
             if (!player.dashHitList.includes(enemy)) {
-                enemy.takeDamage(40); // 대시 데미지
-                // 대시 방향으로 적 넉백
-                enemy.vx = player.vx > 0 ? 15 : (player.vx < 0 ? -15 : 0); 
-                enemy.vy = -8; 
-                player.dashHitList.push(enemy); 
-                if (camera) camera.shakeAmount = 15; 
+                enemy.takeDamage(40);
+
+                enemy.vx = player.vx > 0 ? 15 : (player.vx < 0 ? -15 : 0);
+                enemy.vy = -8;
+
+                player.dashHitList.push(enemy);
+
+                if (camera) camera.shakeAmount = 15;
             }
         }
 
-        // 근접 패링 및 피격 판정
+        // -------------------------
+        // 패링 / 피격
+        // -------------------------
         if (enemy.isAttacking && dist < 60) {
             if (player.isParrying) {
                 const angleToEnemy = Math.atan2(-dy, -dx);
+
                 let angleDiff = angleToEnemy - player.parryAngle;
                 while (angleDiff > Math.PI) angleDiff -= Math.PI * 2;
                 while (angleDiff < -Math.PI) angleDiff += Math.PI * 2;
 
-                // 금색 방패 이펙트에 닿았는지 판정
                 if (Math.abs(angleDiff) <= Math.PI / 2) {
-                    enemy.vx = Math.cos(angleToEnemy) * -20; 
-                    enemy.vy = -10; 
-                    enemy.takeDamage(30); // 패링 반사 딜
-                    enemy.isAttacking = false; 
-                    if (camera) camera.shakeAmount = 20; 
+                    enemy.vx = Math.cos(angleToEnemy) * -20;
+                    enemy.vy = -10;
+                    enemy.takeDamage(30);
+
+                    enemy.isAttacking = false;
+
+                    if (camera) camera.shakeAmount = 20;
                 }
-            } 
-            // 패링 실패 시 데미지
-            else if (!player.isInvincible && !player.isDashing) {
+
+            } else if (!player.isInvincible && !player.isDashing) {
                 player.takeDamage(enemy.damage || 15);
-                enemy.isAttacking = false; 
-                if (camera) camera.shakeAmount = 5; 
+                enemy.isAttacking = false;
+
+                if (camera) camera.shakeAmount = 5;
             }
         }
+
         return true;
     });
 
-    // 4. 투사체 업데이트 및 충돌 판정
+    // =========================
+    // 4. 투사체
+    // =========================
     projectiles = projectiles.filter((proj) => {
         proj.update();
-        
+
         const pCenterX = player.x + player.width / 2;
         const pCenterY = player.y + player.height / 2;
+
         const dx = proj.x - pCenterX;
         const dy = proj.y - pCenterY;
         const dist = Math.sqrt(dx * dx + dy * dy);
 
-        // 1) 투사체 패링(반사) 판정
+        // 패링 반사
         if (player.isParrying && !proj.isReflected) {
             const angleToProj = Math.atan2(dy, dx);
+
             let angleDiff = angleToProj - player.parryAngle;
             while (angleDiff > Math.PI) angleDiff -= Math.PI * 2;
             while (angleDiff < -Math.PI) angleDiff += Math.PI * 2;
 
             if (dist <= 60 && Math.abs(angleDiff) <= Math.PI / 2) {
-                proj.vx *= -2; // 반사 속도 버프
+                proj.vx *= -2;
                 proj.vy *= -2;
-                proj.isReflected = true; 
+                proj.isReflected = true;
+
                 if (camera) camera.shakeAmount = 10;
-                return true; 
+                return true;
             }
         }
 
-        // 2) 반사된 투사체가 적에게 맞았을 때의 피격 판정
+        // 반사 탄환 적 히트
         if (proj.isReflected) {
             let hitEnemy = false;
-            for (let i = 0; i < enemies.length; i++) {
-                let enemy = enemies[i];
-                if (proj.x > enemy.x && proj.x < enemy.x + enemy.width &&
-                    proj.y > enemy.y && proj.y < enemy.y + enemy.height) {
-                    
-                    enemy.takeDamage(30); 
+
+            for (let enemy of enemies) {
+                if (
+                    proj.x > enemy.x && proj.x < enemy.x + enemy.width &&
+                    proj.y > enemy.y && proj.y < enemy.y + enemy.height
+                ) {
+                    enemy.takeDamage(30);
                     hitEnemy = true;
-                    if (camera) camera.shakeAmount = 8; 
-                    break; 
+
+                    if (camera) camera.shakeAmount = 8;
+                    break;
                 }
             }
-            if (hitEnemy) return false; // 맞췄으면 투사체 삭제
-        } 
-        // 3) 플레이어가 맞았을 때
+
+            if (hitEnemy) return false;
+        }
+
+        // 플레이어 피격
         else if (dist < 20 + (proj.radius || 10)) {
             if (!player.isInvincible && !player.isDashing) {
                 player.takeDamage(proj.damage || 10);
-                return false; 
+                return false;
             }
         }
 
-        // 4) 화면 밖으로 멀리 나간 투사체 삭제
-        return proj.x > camera.x - 500 && proj.x < camera.x + canvas.width + 500 &&
-               proj.y > camera.y - 500 && proj.y < camera.y + canvas.height + 500;
+        return proj.x > camera.x - 500 &&
+            proj.x < camera.x + canvas.width + 500 &&
+            proj.y > camera.y - 500 &&
+            proj.y < camera.y + canvas.height + 500;
     });
-    if(player.isDashing){
-        for(let i = 0; i<50; i++){
+
+    // =========================
+    // 5. 플레이어 효과 파티클 (global)
+    // =========================
+    if (player.isDashing) {
+        for (let i = 0; i < 50; i++) {
             particles.push(new Particle(
-                player.x + player.width/2 + Math.random()*30-15,
-                player.y+player.height/2+ Math.random()*5-2.5,
-                0,0.5,"#FFFFFF",1,1
+                player.x + player.width / 2 + Math.random() * 30 - 15,
+                player.y + player.height / 2,
+                0, 0.5,
+                "#FFFFFF", 1, 1
             ));
         }
     }
-    if(player.isUltActive){
-        for(let i = 0; i<50; i++){
-            particles.push(new Particle(player.x + player.width/2,
-                player.y+player.height/2,
-                (Math.random()-0.5)*20,(Math.random()-0.5)*20,"#00FFFF",1,1));
+
+    if (player.isUltActive) {
+        for (let i = 0; i < 50; i++) {
+            particles.push(new Particle(
+                player.x + player.width / 2,
+                player.y + player.height / 2,
+                (Math.random() - 0.5) * 20,
+                (Math.random() - 0.5) * 20,
+                "#00FFFF", 1, 1
+            ));
         }
     }
+
+    // =========================
+    // 6. global particles
+    // =========================
     particles = particles.filter(p => {
         p.update();
-        return p.life > 0; // 수명이 0보다 큰 애들만 살아남음
+        return p.life > 0;
     });
-    // 5. 플레이어 기본 공격(좌클릭) 직사각형 판정
+
+    // =========================
+    // 7. 플레이어 기본 공격
+    // =========================
     if (player.isAttacking) {
         const pCenterX = player.x + player.width / 2;
         const pCenterY = player.y + player.height / 2;
-        const attackRange = 85; 
+
+        const attackRange = 85;
 
         const cosA = Math.cos(player.attackAngle);
         const sinA = Math.sin(player.attackAngle);
 
-        const hitWidth = Math.abs(cosA) * attackRange + 60;  
+        const hitWidth = Math.abs(cosA) * attackRange + 60;
         const hitHeight = Math.abs(sinA) * attackRange + 60;
-        
-        const hitX = pCenterX + (cosA * attackRange * 0.5) - hitWidth / 2;
-        const hitY = pCenterY + (sinA * attackRange * 0.5) - hitHeight / 2;
+
+        const hitX = pCenterX + cosA * attackRange * 0.5 - hitWidth / 2;
+        const hitY = pCenterY + sinA * attackRange * 0.5 - hitHeight / 2;
 
         enemies.forEach(enemy => {
             if (!player.attackHitList.includes(enemy)) {
-                if (hitX < enemy.x + enemy.width && hitX + hitWidth > enemy.x &&
-                    hitY < enemy.y + enemy.height && hitY + hitHeight > enemy.y) {
-                    
-                    enemy.takeDamage(15); 
-                    enemy.vx = cosA * 10; 
-                    enemy.vy = sinA * 10 - 5; 
-                    player.attackHitList.push(enemy); 
-                    if (camera) camera.shakeAmount = 5; 
+                if (
+                    hitX < enemy.x + enemy.width &&
+                    hitX + hitWidth > enemy.x &&
+                    hitY < enemy.y + enemy.height &&
+                    hitY + hitHeight > enemy.y
+                ) {
+                    enemy.takeDamage(15);
+
+                    enemy.vx = cosA * 10;
+                    enemy.vy = sinA * 10 - 5;
+
+                    player.attackHitList.push(enemy);
+
+                    if (camera) camera.shakeAmount = 5;
                 }
             }
         });
     }
 
-    // 6. 플레이어 사망 (게임 오버) 체크
+    // =========================
+    // 8. 플레이어 죽음
+    // =========================
     if (player.hp <= 0 || player.y > canvas.height + 5000) {
-        handleGameOver(); 
+        handleGameOver();
         return;
     }
 
-    // 7. 카메라 업데이트 
+    // =========================
+    // 9. 카메라
+    // =========================
     let targetX = player.x - canvas.width / 2 + player.width / 2;
     let targetY = player.y - canvas.height / 2 + player.height / 2;
+
     camera.x += (targetX - camera.x) * camera.easing;
     camera.y += (targetY - camera.y) * camera.easing;
-    if (camera.x < 0) camera.x = 0; 
+
+    if (camera.x < 0) camera.x = 0;
 
     let sx = (Math.random() - 0.5) * camera.shakeAmount;
     let sy = (Math.random() - 0.5) * camera.shakeAmount;
-    camera.shakeAmount *= 0.9; 
 
-    // ==========================================
-    // 8. 렌더링 (모든 그리기 로직)
-    // ==========================================
+    camera.shakeAmount *= 0.9;
+
+    // =========================
+    // 10. 렌더
+    // =========================
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-    ctx.fillStyle = "#92afaf"
-    ctx.fillRect(0,0,canvas.width, canvas.height)
+    ctx.fillStyle = "#92afaf";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
     ctx.save();
-    
-    // 카메라 이동 적용
     ctx.translate(-Math.floor(camera.x + sx), -Math.floor(camera.y + sy));
-    
+
     drawMap(ctx, dummyAsset);
 
-    // 맵 -> 적 -> 투사체 -> 플레이어 순서대로 그림
-    const allEntities = [...enemies,...particles, ...projectiles, player];
-    allEntities.forEach(entity => {
-        if (entity && typeof entity.draw === 'function') {
-            entity.draw(ctx);
-        }
+    const allEntities = [...enemies, ...particles, ...projectiles, player];
+    allEntities.forEach(e => {
+        if (e?.draw) e.draw(ctx);
     });
 
     ctx.restore();
 
-    // 9. UI 업데이트
+    // =========================
+    // 11. UI
+    // =========================
     updateUI();
 
-    // 다음 프레임 예약
     if (!isGameOver) {
         gameAnimationFrame = requestAnimationFrame(gameLoop);
     }

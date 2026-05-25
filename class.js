@@ -25,11 +25,12 @@ export class Particle {
     draw(ctx) {
         if (this.life <= 0) return;
         ctx.save();
-        ctx.globalAlpha = Math.max(0, this.life); // 투명도 적용
+        ctx.globalAlpha *= Math.max(0, this.life); // 투명도 적용
         ctx.fillStyle = this.color;
         ctx.beginPath();
         ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
         ctx.fill();
+        ctx.globalAlpha /= Math.max(0, this.life);
         ctx.restore();
     }
 }
@@ -792,6 +793,10 @@ export class Enemy extends Entity {
             );
         }
     }
+    death() {
+        // 기본: 그냥 삭제 플래그
+        this.isDead = true;
+    }
 }
 export class Projectile {
     constructor(x, y, vx, vy, type) {
@@ -837,6 +842,8 @@ export class Boss_Wind extends Enemy {
         this.lastDashTime = 0;
         this.isDashing = false;
         this.expReward = 500; // 처치 시 보상 경험치
+        this.particles = [];
+        this.dying = false;
     }
 
     update(player, shootCb) {
@@ -888,23 +895,272 @@ export class Boss_Wind extends Enemy {
             setTimeout(() => { this.isDashing = false; }, 600); // 0.6초간 돌진
             this.lastDashTime = now;
         }
+        const cx = this.x + this.width / 2;
+        const cy = this.y + this.height / 2;
+        const dx = player.x + player.width / 2 - cx;
+        const dy = player.y + player.height / 2 - cy;
+
+        const range = 500; // 영향 범위
+
+        if (dist < range) {
+            const force = (1 - dist / range); // 가까울수록 강함
+
+            player.x += (dx / dist) * force * 4;
+            player.y += (dy / dist) * force * 4;
+            if (dist < 50) {
+                player.x += (dx / dist) * force * 10;
+                player.y += (dy / dist) * force * 10;
+            }
+        }
     }
-
-    draw(ctx) {
-        // 보스 본체 (직사각형)
+    drawParticles(ctx) {
         ctx.save();
-        ctx.shadowBlur = 20;
-        ctx.shadowColor = this.phase === 1 ? 'purple' : 'red';
-        ctx.fillStyle = this.color;
-        ctx.fillRect(this.x, this.y, this.width, this.height);
 
-        // 보스 체력바 (화면 상단이 아니라 보스 머리 위에 표시)
-        const barWidth = this.width + 40;
-        ctx.fillStyle = '#333';
-        ctx.fillRect(this.x - 20, this.y - 20, barWidth, 10);
-        ctx.fillStyle = this.phase === 1 ? '#9b59b6' : '#e74c3c';
-        ctx.fillRect(this.x - 20, this.y - 20, (this.hp / this.maxHp) * barWidth, 10);
+        for (const p of this.particles) {
+            ctx.shadowBlur = this.phase === 1 ? 6 : 12;
+            ctx.shadowColor = '#ffffff';
+
+            p.draw(ctx);
+        }
 
         ctx.restore();
+    }
+    draw(ctx) {
+        //죽음 처리
+        if (this.dying) {
+            this.fade -= 0.01;
+
+            ctx.globalAlpha = this.fade;
+
+            if (this.fade <= 0) {
+                this.isDead = true;
+                return;
+            }
+        }
+        const cx = this.x + this.width / 2;
+        const cy = this.y + this.height / 2;
+
+        // 1. 바람 파티클 생성
+        this.spawnWindParticles(cx, cy);
+
+        // 2. 파티클 업데이트
+        this.updateParticles();
+
+        // 3. 파티클 렌더링 (보스 뒤에 깔림)
+        this.drawParticles(ctx);
+
+        // 4. 바람 오라
+        //this.drawWindAura(ctx);
+
+        // 5. 본체 = Particle
+        //구분용 코어
+        const time = Date.now() * 0.006;
+
+        // 박동 (심장 느낌)
+        const pulse = 1 + Math.sin(time * 2) * 0.25;
+
+        // 중심 크기
+        const coreSize = 10 * pulse;
+
+        ctx.save();
+
+        // ⭐ 바깥 글로우 (심장 에너지)
+        ctx.globalAlpha *= 0.25;
+        ctx.beginPath();
+        ctx.arc(cx, cy, 25 * pulse, 0, Math.PI * 2);
+        ctx.fillStyle = '#ffffff';
+        ctx.fill();
+        ctx.globalAlpha /= 0.25;
+
+        // ⭐ 중간 코어
+        ctx.globalAlpha *= 0.6;
+        ctx.beginPath();
+        ctx.arc(cx, cy, coreSize, 0, Math.PI * 2);
+        ctx.fillStyle = '#ffffff';
+        ctx.fill();
+        ctx.globalAlpha /= 0.6;
+
+        // ⭐ 핵심 심장 점
+        ctx.globalAlpha *= 1;
+        ctx.beginPath();
+        ctx.arc(cx, cy, 3 * pulse, 0, Math.PI * 2);
+        ctx.fillStyle = '#ffffff';
+        ctx.fill();
+        ctx.globalAlpha /= 1;
+
+        ctx.restore();
+
+        const wave = (Math.sin(time * 2) + 1) / 2;
+
+        ctx.save();
+        ctx.globalAlpha *= 0.08 * (1 - wave);
+
+        ctx.beginPath();
+        ctx.arc(cx, cy, 30 + wave * 80, 0, Math.PI * 2);
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+        ctx.globalAlpha /= 0.08 * (1 - wave);
+
+        ctx.restore();
+
+        // 6. HP바
+        this.drawHPBar(ctx);
+
+        // 7. 이동 잔상
+        //this.drawWindTrail(ctx);
+    }
+    spawnWindParticles(cx, cy) {
+        const now = Date.now();
+
+        const baseDelay = this.phase === 1 ? 20 : 8;
+        if (now < this.windTime) return;
+        this.windTime = now + baseDelay;
+
+        const count = this.phase === 1 ? 3 : 8; // ⭐ 핵심 증가
+
+        for (let i = 0; i < count; i++) {
+            const angle = Math.random() * Math.PI * 2;
+            const t = Math.random();
+
+            const radius = this.phase === 1
+                ? (1 - t) * 80
+                : (1 - t) * 110;
+
+            const x = cx + Math.cos(angle) * radius;
+            const y = cy + 60 - t * 120;
+
+            const spin = this.phase === 1
+                ? 2 + (1 - t) * 2
+                : 4 + Math.random() * 3;
+
+            const vx = -Math.sin(angle) * spin;
+            const vy = Math.cos(angle) * spin - (1.5 + t * 2);
+
+            this.particles.push(
+                new Particle(
+                    x,
+                    y,
+                    vx,
+                    vy,
+                    '#ffffff',
+                    this.phase === 1 ? 2 : 3,
+                    1
+                )
+            );
+        }
+    }
+    updateParticles() {
+        for (const p of this.particles) {
+            p.update();
+
+            if (this.dying) {
+                // ⭐ 중력 강화 (가라앉는 핵심)
+                p.vy += 0.08;
+
+                // ⭐ 점점 감속
+                p.vx *= 0.98;
+                p.vy *= 0.98;
+
+                // ⭐ 살짝 중심으로 끌림 (붕괴 느낌)
+                const cx = this.x + this.width / 2;
+                const dx = cx - p.x;
+
+                p.vx += dx * 0.001;
+            }
+        }
+
+        this.particles = this.particles.filter(p => p.life > 0);
+    }
+    drawWindAura(ctx) {
+        const cx = this.x + this.width / 2;
+        const cy = this.y + this.height / 2;
+
+        ctx.save();
+        ctx.globalAlpha = 0.12;
+
+        const time = Date.now() * 0.003;
+
+        for (let i = 0; i < 8; i++) {
+            const radius = 40 + i * 10 + Math.sin(time + i) * 6;
+
+            ctx.beginPath();
+            ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+
+            ctx.strokeStyle = this.phase === 1 ? '#8e44ad' : '#e74c3c';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+        }
+
+        ctx.restore();
+    }
+    drawWindTrail(ctx) {
+        ctx.save();
+        ctx.globalAlpha = 0.1;
+
+        const steps = 6;
+
+        for (let i = 1; i <= steps; i++) {
+            ctx.fillStyle = this.color;
+
+            ctx.fillRect(
+                this.x - this.vx * i * 1.8,
+                this.y - this.vy * i * 1.8,
+                this.width,
+                this.height
+            );
+        }
+
+        ctx.restore();
+    }
+    drawHPBar(ctx) {
+        const barWidth = this.width + 50;
+        const barHeight = 10;
+
+        const x = this.x - 25;
+        const y = this.y - 20;
+
+        ctx.save();
+
+        // 배경
+        ctx.fillStyle = '#222';
+        ctx.fillRect(x, y, barWidth, barHeight);
+
+        // HP
+        const ratio = Math.max(0, this.hp / this.maxHp);
+
+        ctx.fillStyle = this.phase === 1 ? '#9b59b6' : '#e74c3c';
+        ctx.fillRect(x, y, barWidth * ratio, barHeight);
+
+        // 테두리
+        ctx.strokeStyle = '#000';
+        ctx.strokeRect(x, y, barWidth, barHeight);
+
+        ctx.restore();
+    }
+    death() {
+        this.dying = true;
+        this.fade = 1;
+
+        const cx = this.x + this.width / 2;
+        const cy = this.y + this.height / 2;
+
+        for (let i = 0; i < 80; i++) {
+            const angle = Math.random() * Math.PI * 2;
+            const r = Math.random() * 40;
+
+            const x = cx + Math.cos(angle) * r;
+            const y = cy + Math.sin(angle) * r;
+
+            this.particles.push(new Particle(
+                x,
+                y,
+                (Math.random() - 0.5) * 2,   // 약한 좌우 흔들림
+                Math.random() * 3 + 2,       // ⭐ 아래로 가라앉음
+                '#ffffff',
+                3,
+                1
+            ));
+        }
     }
 }
