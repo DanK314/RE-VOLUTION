@@ -1,7 +1,9 @@
 // main.js
-import { Player, Enemy, Boss_Wind, Projectile, Particle } from './class.js';
+import { Player, Enemy, Projectile, Particle } from './class.js';
 import { applyPhysics } from './physics.js';
 import { drawMap, generateRPGMap, extractSpawners } from './map.js';
+
+import { Boss_Wind } from './boss/boss_wind.js';
 
 // UI 요소
 const mainScreen = document.getElementById('main-screen');
@@ -142,16 +144,18 @@ function startGame(isRevive = false) {
         player.vx = 0; player.vy = 0;
         player.hp = player.maxHp;
         player.isInvincible = false;
+        player.isUltActive = false;
+        player.isAttacking = false;
+        player.isDashing = false;
+        player.isParrying = false;
+
+        spawnPoints.forEach(sp => {
+            sp.spawned = false;
+        });
     }
 
     // 몬스터 소환
-    enemies = spawnPoints.map(pos => {
-        if (pos.type === 'boss') {
-            return new Boss_Wind(pos.x, pos.y);
-        } else {
-            return new Enemy(pos.x, pos.y, Math.random() > 0.3 ? 'slime' : 'rock');
-        }
-    });
+    enemies = []
 
     updateUI();
     camera.x = 0; camera.y = 0; camera.shakeAmount = 0;
@@ -184,6 +188,49 @@ function gameLoop() {
     player.update(keys, mouse, screenMouse, (p) => projectiles.push(p));
 
     // =========================
+    // 적 스폰
+    // =========================
+
+    const SPAWN_DISTANCE = 1200;
+
+    for (const spawner of spawnPoints) {
+
+        // 이미 생성됨
+        if (spawner.spawned) continue;
+
+        const dx = player.x - spawner.x;
+
+        // 플레이어 근처 오면 생성
+        if (Math.abs(dx) < SPAWN_DISTANCE) {
+
+            let enemy;
+
+            if (spawner.type === "boss") {
+
+                enemy = new Boss_Wind(
+                    spawner.x,
+                    spawner.y
+                );
+            }
+
+            else {
+
+                enemy = new Enemy(
+                    spawner.x,
+                    spawner.y,
+                    Math.random() > 0.3
+                        ? "slime"
+                        : "rock"
+                );
+            }
+
+            enemies.push(enemy);
+
+            spawner.spawned = true;
+        }
+    }
+
+    // =========================
     // 3. 적 업데이트 + 전투
     // =========================
     enemies = enemies.filter(enemy => {
@@ -205,11 +252,29 @@ function gameLoop() {
         // AI / 물리 업데이트
         // =========================
         if (!enemy.dying) {
-            if (enemy instanceof Boss_Wind) {
-                enemy.update(player, (p) => projectiles.push(p));
-            } else {
-                enemy.update(player);
-                applyPhysics(enemy);
+
+            const activeDistance = 1800;
+
+            // 너무 멀면 AI/물리 중지
+            if (
+                Math.abs(enemy.x - player.x)
+                < activeDistance
+            ) {
+
+                if (enemy instanceof Boss_Wind) {
+
+                    enemy.update(
+                        player,
+                        (p) => projectiles.push(p)
+                    );
+                }
+
+                else {
+
+                    enemy.update(player);
+
+                    applyPhysics(enemy);
+                }
             }
         }
 
@@ -266,6 +331,10 @@ function gameLoop() {
 
             } else if (!player.isInvincible && !player.isDashing) {
                 player.takeDamage(enemy.damage || 15);
+                if (enemy.type === "rock") {
+                    player.bleeding = true;
+                    player.bleedingEndTime = Date.now() + 10000;
+                }
                 enemy.isAttacking = false;
 
                 if (camera) camera.shakeAmount = 5;
@@ -344,7 +413,7 @@ function gameLoop() {
     // 5. 플레이어 효과 파티클 (global)
     // =========================
     if (player.isDashing) {
-        for (let i = 0; i < 50; i++) {
+        for (let i = 0; i < 5; i++) {
             particles.push(new Particle(
                 player.x + player.width / 2 + Math.random() * 30 - 15,
                 player.y + player.height / 2,
@@ -355,7 +424,7 @@ function gameLoop() {
     }
 
     if (player.isUltActive) {
-        for (let i = 0; i < 50; i++) {
+        for (let i = 0; i < 5; i++) {
             particles.push(new Particle(
                 player.x + player.width / 2,
                 player.y + player.height / 2,
@@ -367,8 +436,36 @@ function gameLoop() {
     }
 
     // =========================
+    // bleed particle
+    // =========================
+
+    if (player.bleeding) {
+
+        for (let i = 0; i < 2; i++) {
+
+            particles.push(new Particle(
+
+                player.x + player.width / 2 + (Math.random() - 0.5) * 20,
+                player.y + player.height / 2 + (Math.random() - 0.5) * 30,
+
+                (Math.random() - 0.5) * 2,
+                Math.random() * -1.5,
+
+                "#aa0000",
+                2,
+                0.8
+            ));
+        }
+    }
+    // =========================
     // 6. global particles
     // =========================
+    if (particles.length > 1200) {
+        particles.splice(
+            0,
+            particles.length - 1200
+        );
+    }
     particles = particles.filter(p => {
         p.update();
         return p.life > 0;
@@ -447,11 +544,29 @@ function gameLoop() {
     ctx.save();
     ctx.translate(-Math.floor(camera.x + sx), -Math.floor(camera.y + sy));
 
-    drawMap(ctx, dummyAsset);
+    drawMap(
+        ctx,
+        dummyAsset,
+        camera,
+        canvas
+    );
 
     const allEntities = [...enemies, ...particles, ...projectiles, player];
     allEntities.forEach(e => {
-        if (e?.draw) e.draw(ctx);
+
+        if (!e?.draw) return;
+
+        // 화면 밖 오브젝트 스킵
+        if (
+            e.x + 100 < camera.x ||
+            e.x > camera.x + canvas.width + 100 ||
+            e.y + 100 < camera.y ||
+            e.y > camera.y + canvas.height + 100
+        ) {
+            return;
+        }
+
+        e.draw(ctx);
     });
 
     ctx.restore();

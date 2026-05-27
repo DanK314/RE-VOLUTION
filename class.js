@@ -24,13 +24,23 @@ export class Particle {
 
     draw(ctx) {
         if (this.life <= 0) return;
+
         ctx.save();
-        ctx.globalAlpha *= Math.max(0, this.life); // 투명도 적용
+
+        const prevAlpha = ctx.globalAlpha;
+        ctx.globalAlpha = prevAlpha * this.life;
+
         ctx.fillStyle = this.color;
-        ctx.beginPath();
-        ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.globalAlpha /= Math.max(0, this.life);
+
+        ctx.fillRect(
+            this.x,
+            this.y,
+            this.size,
+            this.size
+        );
+
+        ctx.globalAlpha = prevAlpha;
+
         ctx.restore();
     }
 }
@@ -63,8 +73,8 @@ export class Player extends Entity {
 
         // 스킬 선택 시스템
         this.selectedSkill = 1;   // 1: 패링, 2: 돌진
-        this.hasDash = true;
-        this.hasUltimate = true;
+        this.hasDash = false;
+        this.hasUltimate = false;
 
         // 1번 스킬: 패링
         this.isParrying = false;
@@ -88,6 +98,10 @@ export class Player extends Entity {
         this.levelUpEffectEndTime = 0;
         this.maxvx = 10;
         this.jumpKeyPressed = false;
+        this.movementSlowness = 0;
+        this.healCoolEndTime = 0;
+        this.bleeding = false;
+        this.bleedingEndTime = 0;
     }
 
     // 좌클릭: 기본 공격 발동
@@ -188,8 +202,8 @@ export class Player extends Entity {
                 this.vx *= 0.1;
             }
         } else {
-            if (keys['ArrowLeft'] || keys['a']) this.vx -= this.speed;
-            if (keys['ArrowRight'] || keys['d']) this.vx += this.speed;
+            if (keys['ArrowLeft'] || keys['a']) this.vx -= this.speed * (1 - this.movementSlowness);
+            if (keys['ArrowRight'] || keys['d']) this.vx += this.speed * (1 - this.movementSlowness);
             if (Math.abs(this.vx) > this.maxvx && !this.isDashing) {
                 this.vx = this.maxvx * Math.sign(this.vx);
             }
@@ -200,9 +214,9 @@ export class Player extends Entity {
 
             const jumpKey = keys['ArrowUp'] || keys['w'] || keys[' '];
             if (jumpKey && !this.jumpKeyPressed) {
-                if (this.isGrounded) { this.vy = -12; this.isGrounded = false; }
-                else if (this.isTouchingLeftWall) { this.vy = -13; this.vx = 15; }
-                else if (this.isTouchingRightWall) { this.vy = -13; this.vx = -15; }
+                if (this.isGrounded) { this.vy = -12 * (1 - this.movementSlowness); this.isGrounded = false; }
+                else if (this.isTouchingLeftWall) { this.vy = -13 * (1 - this.movementSlowness); this.vx = 15 * (1 - this.movementSlowness); }
+                else if (this.isTouchingRightWall) { this.vy = -13 * (1 - this.movementSlowness); this.vx = -15 * (1 - this.movementSlowness); }
                 this.jumpKeyPressed = true;
             } else if (!jumpKey) this.jumpKeyPressed = false;
         }
@@ -235,6 +249,17 @@ export class Player extends Entity {
                 this.isUltActive = false;
             }
         }
+        this.movementSlowness *= 0.9;
+
+        if (this.movementSlowness < 0.01) {
+            this.movementSlowness = 0;
+        }
+
+        if (this.bleeding && this.bleedingEndTime < now) this.bleeding = false;
+        //자연 회복
+        if (this.healCoolEndTime > now || this.bleeding) return;
+        this.hp = Math.min(this.maxHp, this.hp + 5 * (this.hp / this.maxHp));
+        this.healCoolEndTime = now + 1000;
     }
 
     draw(ctx) {
@@ -823,344 +848,5 @@ export class Projectile {
         ctx.fillStyle = this.isReflected ? 'gold' : (this.type === 'boss_magic' ? 'purple' : 'red');
         ctx.fill();
         ctx.closePath();
-    }
-}
-// class.js 맨 아래에 추가
-
-export class Boss_Wind extends Enemy {
-    constructor(x, y) {
-        super(x, y);
-        this.width = 80;   // 보스는 덩치가 큼
-        this.height = 80;
-        this.hp = 500;     // 압도적인 체력
-        this.maxHp = 500;
-        this.color = '#8e44ad'; // 보라색
-        this.speed = 2;
-        this.damage = 30;  // 닿으면 아픔
-        this.phase = 1;
-        this.lastShootTime = 0;
-        this.lastDashTime = 0;
-        this.isDashing = false;
-        this.expReward = 500; // 처치 시 보상 경험치
-        this.particles = [];
-        this.dying = false;
-    }
-
-    update(player, shootCb) {
-        const now = Date.now();
-        const pCenterX = player.x + player.width / 2;
-        const pCenterY = player.y + player.height / 2;
-        const centerX = this.x + this.width / 2;
-        const centerY = this.y + this.height / 2;
-
-        // 1. 페이즈 전환 (체력 50% 이하)
-        if (this.hp < this.maxHp / 2 && this.phase === 1) {
-            this.phase = 2;
-            this.color = '#c0392b'; // 더 진한 빨강으로 변함
-            this.speed = 4;        // 빨라짐
-        }
-
-        // 2. 이동 로직 (플레이어 근처로 슬금슬금 접근)
-        const dist = Math.sqrt((pCenterX - centerX) ** 2 + (pCenterY - centerY) ** 2);
-        if (dist > 200 && !this.isDashing) {
-            const dx = pCenterX - centerX;
-            this.vx = dx > 0 ? this.speed : -this.speed;
-        } else if (!this.isDashing) {
-            this.vx *= 0.9; // 근처에 오면 멈춤
-        }
-
-        // 3. 공격 패턴: 발사 (shootCb는 projectiles.push를 수행하는 콜백)
-        const shootInterval = this.phase === 1 ? 1500 : 1000;
-        if (now > this.lastShootTime + shootInterval) {
-            const angle = Math.atan2(pCenterY - centerY, pCenterX - centerX);
-
-            if (this.phase === 1) {
-                // 1페이즈: 조준 단발 사격
-                shootCb(new Projectile(centerX, centerY, Math.cos(angle) * 8, Math.sin(angle) * 8, 'boss_magic'));
-            } else {
-                // 2페이즈: 3방향 확산탄
-                for (let i = -1; i <= 1; i++) {
-                    const spreadAngle = angle + (i * 0.3);
-                    shootCb(new Projectile(centerX, centerY, Math.cos(spreadAngle) * 10, Math.sin(spreadAngle) * 10, 'boss_magic'));
-                }
-            }
-            this.lastShootTime = now;
-        }
-
-        // 4. 공격 패턴: 돌진 (2페이즈 전용)
-        if (this.phase === 2 && now > this.lastDashTime + 4000 && !this.isDashing) {
-            const dx = pCenterX - centerX;
-            this.vx = dx > 0 ? 15 : -15; // 순간 돌진
-            this.isDashing = true;
-            setTimeout(() => { this.isDashing = false; }, 600); // 0.6초간 돌진
-            this.lastDashTime = now;
-        }
-        const cx = this.x + this.width / 2;
-        const cy = this.y + this.height / 2;
-        const dx = player.x + player.width / 2 - cx;
-        const dy = player.y + player.height / 2 - cy;
-
-        const range = 500; // 영향 범위
-
-        if (dist < range) {
-            const force = (1 - dist / range); // 가까울수록 강함
-
-            player.x += (dx / dist) * force * 4;
-            player.y += (dy / dist) * force * 4;
-            if (dist < 50) {
-                player.x += (dx / dist) * force * 10;
-                player.y += (dy / dist) * force * 10;
-            }
-        }
-    }
-    drawParticles(ctx) {
-        ctx.save();
-
-        for (const p of this.particles) {
-            ctx.shadowBlur = this.phase === 1 ? 6 : 12;
-            ctx.shadowColor = '#ffffff';
-
-            p.draw(ctx);
-        }
-
-        ctx.restore();
-    }
-    draw(ctx) {
-        //죽음 처리
-        if (this.dying) {
-            this.fade -= 0.01;
-
-            ctx.globalAlpha = this.fade;
-
-            if (this.fade <= 0) {
-                this.isDead = true;
-                return;
-            }
-        }
-        const cx = this.x + this.width / 2;
-        const cy = this.y + this.height / 2;
-
-        // 1. 바람 파티클 생성
-        this.spawnWindParticles(cx, cy);
-
-        // 2. 파티클 업데이트
-        this.updateParticles();
-
-        // 3. 파티클 렌더링 (보스 뒤에 깔림)
-        this.drawParticles(ctx);
-
-        // 4. 바람 오라
-        //this.drawWindAura(ctx);
-
-        // 5. 본체 = Particle
-        //구분용 코어
-        const time = Date.now() * 0.006;
-
-        // 박동 (심장 느낌)
-        const pulse = 1 + Math.sin(time * 2) * 0.25;
-
-        // 중심 크기
-        const coreSize = 10 * pulse;
-
-        ctx.save();
-
-        // ⭐ 바깥 글로우 (심장 에너지)
-        ctx.globalAlpha *= 0.25;
-        ctx.beginPath();
-        ctx.arc(cx, cy, 25 * pulse, 0, Math.PI * 2);
-        ctx.fillStyle = '#ffffff';
-        ctx.fill();
-        ctx.globalAlpha /= 0.25;
-
-        // ⭐ 중간 코어
-        ctx.globalAlpha *= 0.6;
-        ctx.beginPath();
-        ctx.arc(cx, cy, coreSize, 0, Math.PI * 2);
-        ctx.fillStyle = '#ffffff';
-        ctx.fill();
-        ctx.globalAlpha /= 0.6;
-
-        // ⭐ 핵심 심장 점
-        ctx.globalAlpha *= 1;
-        ctx.beginPath();
-        ctx.arc(cx, cy, 3 * pulse, 0, Math.PI * 2);
-        ctx.fillStyle = '#ffffff';
-        ctx.fill();
-        ctx.globalAlpha /= 1;
-
-        ctx.restore();
-
-        const wave = (Math.sin(time * 2) + 1) / 2;
-
-        ctx.save();
-        ctx.globalAlpha *= 0.08 * (1 - wave);
-
-        ctx.beginPath();
-        ctx.arc(cx, cy, 30 + wave * 80, 0, Math.PI * 2);
-        ctx.strokeStyle = '#ffffff';
-        ctx.lineWidth = 2;
-        ctx.stroke();
-        ctx.globalAlpha /= 0.08 * (1 - wave);
-
-        ctx.restore();
-
-        // 6. HP바
-        this.drawHPBar(ctx);
-
-        // 7. 이동 잔상
-        //this.drawWindTrail(ctx);
-    }
-    spawnWindParticles(cx, cy) {
-        const now = Date.now();
-
-        const baseDelay = this.phase === 1 ? 20 : 8;
-        if (now < this.windTime) return;
-        this.windTime = now + baseDelay;
-
-        const count = this.phase === 1 ? 3 : 8; // ⭐ 핵심 증가
-
-        for (let i = 0; i < count; i++) {
-            const angle = Math.random() * Math.PI * 2;
-            const t = Math.random();
-
-            const radius = this.phase === 1
-                ? (1 - t) * 80
-                : (1 - t) * 110;
-
-            const x = cx + Math.cos(angle) * radius;
-            const y = cy + 60 - t * 120;
-
-            const spin = this.phase === 1
-                ? 2 + (1 - t) * 2
-                : 4 + Math.random() * 3;
-
-            const vx = -Math.sin(angle) * spin;
-            const vy = Math.cos(angle) * spin - (1.5 + t * 2);
-
-            this.particles.push(
-                new Particle(
-                    x,
-                    y,
-                    vx,
-                    vy,
-                    '#ffffff',
-                    this.phase === 1 ? 2 : 3,
-                    1
-                )
-            );
-        }
-    }
-    updateParticles() {
-        for (const p of this.particles) {
-            p.update();
-
-            if (this.dying) {
-                // ⭐ 중력 강화 (가라앉는 핵심)
-                p.vy += 0.08;
-
-                // ⭐ 점점 감속
-                p.vx *= 0.98;
-                p.vy *= 0.98;
-
-                // ⭐ 살짝 중심으로 끌림 (붕괴 느낌)
-                const cx = this.x + this.width / 2;
-                const dx = cx - p.x;
-
-                p.vx += dx * 0.001;
-            }
-        }
-
-        this.particles = this.particles.filter(p => p.life > 0);
-    }
-    drawWindAura(ctx) {
-        const cx = this.x + this.width / 2;
-        const cy = this.y + this.height / 2;
-
-        ctx.save();
-        ctx.globalAlpha = 0.12;
-
-        const time = Date.now() * 0.003;
-
-        for (let i = 0; i < 8; i++) {
-            const radius = 40 + i * 10 + Math.sin(time + i) * 6;
-
-            ctx.beginPath();
-            ctx.arc(cx, cy, radius, 0, Math.PI * 2);
-
-            ctx.strokeStyle = this.phase === 1 ? '#8e44ad' : '#e74c3c';
-            ctx.lineWidth = 2;
-            ctx.stroke();
-        }
-
-        ctx.restore();
-    }
-    drawWindTrail(ctx) {
-        ctx.save();
-        ctx.globalAlpha = 0.1;
-
-        const steps = 6;
-
-        for (let i = 1; i <= steps; i++) {
-            ctx.fillStyle = this.color;
-
-            ctx.fillRect(
-                this.x - this.vx * i * 1.8,
-                this.y - this.vy * i * 1.8,
-                this.width,
-                this.height
-            );
-        }
-
-        ctx.restore();
-    }
-    drawHPBar(ctx) {
-        const barWidth = this.width + 50;
-        const barHeight = 10;
-
-        const x = this.x - 25;
-        const y = this.y - 20;
-
-        ctx.save();
-
-        // 배경
-        ctx.fillStyle = '#222';
-        ctx.fillRect(x, y, barWidth, barHeight);
-
-        // HP
-        const ratio = Math.max(0, this.hp / this.maxHp);
-
-        ctx.fillStyle = this.phase === 1 ? '#9b59b6' : '#e74c3c';
-        ctx.fillRect(x, y, barWidth * ratio, barHeight);
-
-        // 테두리
-        ctx.strokeStyle = '#000';
-        ctx.strokeRect(x, y, barWidth, barHeight);
-
-        ctx.restore();
-    }
-    death() {
-        this.dying = true;
-        this.fade = 1;
-
-        const cx = this.x + this.width / 2;
-        const cy = this.y + this.height / 2;
-
-        for (let i = 0; i < 80; i++) {
-            const angle = Math.random() * Math.PI * 2;
-            const r = Math.random() * 40;
-
-            const x = cx + Math.cos(angle) * r;
-            const y = cy + Math.sin(angle) * r;
-
-            this.particles.push(new Particle(
-                x,
-                y,
-                (Math.random() - 0.5) * 2,   // 약한 좌우 흔들림
-                Math.random() * 3 + 2,       // ⭐ 아래로 가라앉음
-                '#ffffff',
-                3,
-                1
-            ));
-        }
     }
 }

@@ -7,7 +7,7 @@ export const TILE_SPAWNER = 2;       // 일반 몹 (M)
 export const TILE_BOSS_SPAWNER = 3;  // 보스 (B) 🔥 추가
 
 function stringToMap(str) {
-    return str.trim().split('\n').map(row => 
+    return str.trim().split('\n').map(row =>
         row.trim().split('').map(char => {
             if (char === '#') return TILE_GROUND;
             if (char === 'M') return TILE_SPAWNER;
@@ -26,7 +26,7 @@ const townString = `
 ................
 ................
 ................
-.......B........
+................
 ################
 ################
 `;
@@ -98,19 +98,90 @@ const mapChunks = [
     ################
     `
 ].map(stringToMap);
-export let currentMap = townChunk; 
+export let currentMap = townChunk;
 
 export function generateRPGMap(randomChunkCount = 10) {
-    let newMap = [];
-    let mapHeight = 12; 
 
-    for (let r = 0; r < mapHeight; r++) newMap[r] = [];
-    for (let r = 0; r < mapHeight; r++) newMap[r] = newMap[r].concat(townChunk[r]);
-    for (let i = 0; i < randomChunkCount; i++) {
-        const randomChunk = mapChunks[Math.floor(Math.random() * mapChunks.length)];
-        for (let r = 0; r < mapHeight; r++) newMap[r] = newMap[r].concat(randomChunk[r]);
+    let newMap = [];
+    const mapHeight = 12;
+
+    for (let r = 0; r < mapHeight; r++) {
+        newMap[r] = [];
     }
-    for (let r = 0; r < mapHeight; r++) newMap[r] = newMap[r].concat(bossChunk[r]);
+
+    // =========================
+    // 시작 마을
+    // =========================
+
+    for (let r = 0; r < mapHeight; r++) {
+        newMap[r] = newMap[r].concat(townChunk[r]);
+    }
+
+    // =========================
+    // 랜덤 구간
+    // =========================
+
+    for (let i = 0; i < randomChunkCount; i++) {
+
+        const randomChunk =
+            mapChunks[
+            Math.floor(Math.random() * mapChunks.length)
+            ];
+
+        for (let r = 0; r < mapHeight; r++) {
+            newMap[r] = newMap[r].concat(randomChunk[r]);
+        }
+    }
+
+    // =========================
+    // 보스 구간
+    // =========================
+
+    for (let r = 0; r < mapHeight; r++) {
+        newMap[r] = newMap[r].concat(bossChunk[r]);
+    }
+
+    // =========================
+    // 보스 뒤 낭떠러지
+    // =========================
+
+    const gapWidth = 10;
+
+    // 보스맵 마지막 벽 높이 기준
+    // 보통 바닥이 10~11줄이면:
+    const gapStartRow = 5;
+
+    for (let r = 0; r < mapHeight; r++) {
+
+        for (let i = 0; i < gapWidth; i++) {
+
+            // 위는 공기
+            if (r >= gapStartRow) {
+                newMap[r].push(0);
+            }
+
+            // 아래도 전부 공기
+            else {
+                newMap[r].push(0);
+            }
+        }
+    }
+
+    // =========================
+    // 다음 랜덤 지역
+    // =========================
+
+    for (let i = 0; i < randomChunkCount; i++) {
+
+        const randomChunk =
+            mapChunks[
+            Math.floor(Math.random() * mapChunks.length)
+            ];
+
+        for (let r = 0; r < mapHeight; r++) {
+            newMap[r] = newMap[r].concat(randomChunk[r]);
+        }
+    }
 
     currentMap = newMap;
 }
@@ -124,28 +195,71 @@ export function extractSpawners() {
             if (currentMap[row][col] === TILE_BOSS_SPAWNER) type = 'boss'; // 🔥 보스 타입 체크
 
             if (type) {
-                spawns.push({ 
-                    x: col * TILE_SIZE, 
+                spawns.push({
+                    x: col * TILE_SIZE,
                     y: row * TILE_SIZE,
                     type: type // 스폰 지점의 타입을 함께 넘겨줌
                 });
-                currentMap[row][col] = TILE_AIR; 
+                currentMap[row][col] = TILE_AIR;
             }
         }
     }
     return spawns;
 }
-export function drawMap(ctx, asset) {
-    for (let row = 0; row < currentMap.length; row++) {
-        for (let col = 0; col < currentMap[row].length; col++) {
-            if (currentMap[row][col] === TILE_GROUND) {
+export function drawMap(
+    ctx,
+    asset,
+    camera,
+    canvas
+) {
+
+    const startCol =
+        Math.floor(camera.x / TILE_SIZE);
+
+    const endCol =
+        startCol +
+        Math.ceil(canvas.width / TILE_SIZE) + 2;
+
+    const startRow =
+        Math.floor(camera.y / TILE_SIZE);
+
+    const endRow =
+        startRow +
+        Math.ceil(canvas.height / TILE_SIZE) + 2;
+
+    for (let row = startRow; row < endRow; row++) {
+
+        if (!currentMap[row]) continue;
+
+        for (let col = startCol; col < endCol; col++) {
+
+            if (
+                currentMap[row][col]
+                === TILE_GROUND
+            ) {
+
                 const x = col * TILE_SIZE;
                 const y = row * TILE_SIZE;
 
-                ctx.fillStyle = '#8B4513'; 
-                ctx.fillRect(x, y, TILE_SIZE, TILE_SIZE);
+                ctx.fillStyle = '#8B4513';
+
+                ctx.fillRect(
+                    x,
+                    y,
+                    TILE_SIZE,
+                    TILE_SIZE
+                );
+
                 ctx.strokeStyle = '#5c2e0e';
-                ctx.strokeRect(x, y, TILE_SIZE, TILE_SIZE);
+
+                /*
+                ctx.strokeRect(
+                    x,
+                    y,
+                    TILE_SIZE,
+                    TILE_SIZE
+                );
+                */
             }
         }
     }
@@ -155,6 +269,6 @@ export function getTileAt(x, y) {
     const col = Math.floor(x / TILE_SIZE);
     const row = Math.floor(y / TILE_SIZE);
 
-    if (row < 0 || row >= currentMap.length || col < 0 || col >= currentMap[0].length) return TILE_AIR; 
+    if (row < 0 || row >= currentMap.length || col < 0 || col >= currentMap[0].length) return TILE_AIR;
     return currentMap[row][col];
 }
