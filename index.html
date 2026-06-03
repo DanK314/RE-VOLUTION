@@ -27,6 +27,13 @@
                 <div class="stat hp-stat">HP: <span id="hpValue">100 / 100</span></div>
                 <div class="stat exp-stat">EXP: <span id="expValue">0 / 50</span></div>
             </div>
+            <div class="stat-panel">
+                <div class="stat">Health: <span id="statHealth">0</span></div>
+                <div class="stat">Damage: <span id="statDamage">0</span></div>
+                <div class="stat">Speed: <span id="statSpeed">0</span></div>
+                <div class="stat">Regen: <span id="statRegen">0</span></div>
+                <div class="stat">Cooldown: <span id="statCooldown">0%</span></div>
+            </div>
             <div class="canvas-container">
                 <canvas id="gameCanvas" width="800" height="600"></canvas>
             </div>
@@ -43,6 +50,35 @@
                 </div>
                 <div class="skill-slot empty"></div>
                 <div class="skill-slot empty"></div>
+            </div>
+            <div id="level-up-modal" class="overlay hidden">
+                <div class="modal-card">
+                    <h2>업그레이드!</h2>
+                    <p>업그레이드 할 스탯을 고르세요.</p>
+                    <div class="stat-grid">
+                        <button class="stat-option" data-stat="health">
+                            <strong>체력</strong>
+                            <span>+20 max HP</span>
+                        </button>
+                        <button class="stat-option" data-stat="damage">
+                            <strong>데미지</strong>
+                            <span>+2% damage</span>
+                        </button>
+                        <button class="stat-option" data-stat="speed">
+                            <strong>이동 속도</strong>
+                            <span>+0.1 speed</span>
+                        </button>
+                        <button class="stat-option" data-stat="regen">
+                            <strong>체력 회복</strong>
+                            <span>+2 regen/sec</span>
+                        </button>
+                        <button class="stat-option" data-stat="cooldown">
+                            <strong>쿨타임</strong>
+                            <span>-5% cooldown</span>
+                        </button>
+                    </div>
+                    <p class="modal-note">Press 1-5 or click a stat button to choose.</p>
+                </div>
             </div>
         </div>
 

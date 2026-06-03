@@ -38,10 +38,10 @@ const bossString = `
 #..............#
 #..............#
 #..............#
-#..............#
-#......####....#
-#..............#
-#.......B......#
+##.............#
+#...####.......#
+#.........#....#
+#.......B....###
 ################
 ################
 `;
@@ -181,6 +181,13 @@ export function generateRPGMap(randomChunkCount = 10) {
         for (let r = 0; r < mapHeight; r++) {
             newMap[r] = newMap[r].concat(randomChunk[r]);
         }
+    }
+    // =========================
+    // 보스 구간
+    // =========================
+
+    for (let r = 0; r < mapHeight; r++) {
+        newMap[r] = newMap[r].concat(bossChunk[r]);
     }
 
     currentMap = newMap;

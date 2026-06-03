@@ -3,6 +3,79 @@
 import { getAngle } from "./physics.js";
 import { asset } from "./load.js";
 
+export class FloatingText {
+    constructor(x, y, text, options = {}) {
+        this.x = x;
+        this.y = y;
+
+        this.text = text;
+
+        this.triggerRadius = options.triggerRadius ?? 200;
+
+        this.fontSize = options.fontSize ?? 24;
+        this.color = options.color ?? "white";
+
+        this.duration = options.duration ?? Infinity;
+
+        this.isShowing = false;
+        this.isTriggered = false;
+
+        this.onlyOnce = options.onlyOnce ?? false;
+
+        this.startTime = 0;
+    }
+
+    update(player) {
+        if (this.onlyOnce && this.isTriggered) return;
+
+        const dx = player.x - this.x;
+        const dy = player.y - this.y;
+
+        const dist = Math.hypot(dx, dy);
+
+        if (dist <= this.triggerRadius) {
+            if (!this.isShowing) {
+                this.isShowing = true;
+                this.isTriggered = true;
+                this.startTime = Date.now();
+            }
+        } else {
+            this.isShowing = false;
+        }
+
+        if (
+            this.isShowing &&
+            Date.now() - this.startTime >= this.duration
+        ) {
+            this.isShowing = false;
+        }
+    }
+
+    draw(ctx, player) {
+        const dx = player.x - this.x;
+        const dy = player.y - this.y;
+        const prevAlpha = ctx.globalAlpha;
+        const dist = Math.hypot(dx, dy);
+
+        if (dist > this.triggerRadius) return;
+
+        // 가까울수록 투명도 증가
+        const alpha = 1 - (dist / this.triggerRadius);
+
+        ctx.save();
+
+        ctx.globalAlpha = alpha;
+
+        ctx.font = `${this.fontSize}px Arial`;
+        ctx.fillStyle = this.color;
+        ctx.textAlign = "center";
+
+        ctx.fillText(this.text, this.x, this.y);
+
+        ctx.restore();
+        ctx.globalAlpha = prevAlpha;
+    }
+}
 
 export class Particle {
     constructor(x, y, vx, vy, color, size, life) {
@@ -60,9 +133,36 @@ export class Player extends Entity {
     constructor(x, y) {
         super(x, y, 40, 40, 7);
         this.maxHp = 100; this.hp = this.maxHp;
-        this.level = 1; this.exp = 0; this.maxExp = 50;
+        this.level = 1; this.exp = 0; this.maxExp = 100;
         this.color = '#3498db';
         this.facingDirection = 1;
+
+        this.stats = {
+            health: 0,
+            damage: 0,
+            speed: 0,
+            regen: 0,
+            cooldown: 0,
+        };
+        this.maxStats = {
+            health: 30,
+            damage: 25,
+            speed: 20,
+            regen: 15,
+            cooldown: 9
+        };
+
+        this.baseMaxHp = 100;
+        this.baseSpeed = 7;
+        this.baseMaxVx = 10;
+        this.attackDamageMultiplier = 1;
+        this.regenAmount = 5;
+        this.cooldownReduction = 0;
+        this.unspentStatPoints = 0;
+        this.onLevelUp = null;
+
+        this.maxHp = this.baseMaxHp;
+        this.hp = this.maxHp;
 
         // 공격 관련
         this.isAttacking = false;
@@ -100,16 +200,36 @@ export class Player extends Entity {
         this.jumpKeyPressed = false;
         this.movementSlowness = 0;
         this.healCoolEndTime = 0;
-        this.bleeding = false;
-        this.bleedingEndTime = 0;
+        this.effects = {};
+    }
+
+    hasEffect(name) {
+        return Boolean(this.effects[name]);
+    }
+
+    takeEffect(effect) {
+        if (!effect || !effect.effect) return;
+
+        const now = Date.now();
+        const name = effect.effect;
+        const duration = effect.duration || 0;
+
+        this.effects[name] = {
+            ...effect,
+            name,
+            startTime: now,
+            endTime: now + duration,
+        };
     }
 
     // 좌클릭: 기본 공격 발동
     attack(mouseX, mouseY) {
-        if (Date.now() < this.attackCooldownTime) return;
+        const now = Date.now();
+        const cooldownReduction = this.getCooldownReduction();
+        if (now < this.attackCooldownTime) return;
         this.isAttacking = true;
-        this.attackEndTime = Date.now() + 200;
-        this.attackCooldownTime = Date.now() + 400;
+        this.attackEndTime = now + 200;
+        this.attackCooldownTime = now + 400 * (1 - cooldownReduction);
         this.attackHitList = [];
 
         const centerX = this.x + this.width / 2;
@@ -125,7 +245,7 @@ export class Player extends Entity {
             if (now < this.parryCooldownTime) return;
             this.isParrying = true;
             this.parryEndTime = now + 250;
-            this.parryCooldownTime = now + 700;
+            this.parryCooldownTime = now + 700 * (1 - this.getCooldownReduction());
 
             const centerX = this.x + this.width / 2;
             const centerY = this.y + this.height / 2;
@@ -134,7 +254,7 @@ export class Player extends Entity {
             if (now < this.dashCooldownTime) return;
             this.isDashing = true;
             this.dashEndTime = now + 200; // 0.2초 (200ms) 동안 순식간에 이동!
-            this.dashCooldownTime = now + 3000; // 쿨타임 1.5초
+            this.dashCooldownTime = now + 3000 * (1 - this.getCooldownReduction());
 
             // 엄청난 속도로 돌진! (방향에 맞춰서)
             this.vx = this.facingDirection * 35; // 🔥 기존보다 훨씬 높은 수치!
@@ -152,7 +272,7 @@ export class Player extends Entity {
         if (this.selectedSkill === 2 && this.hasUltimate && now >= this.ultCooldown) {
             this.isUltActive = true;
             this.ultEndTime = now + 5000;
-            this.ultCooldown = now + 10000;
+            this.ultCooldown = now + 10000 * (1 - this.getCooldownReduction());
         }
     }
 
@@ -163,8 +283,17 @@ export class Player extends Entity {
             this.exp -= this.maxExp;
             this.level++;
             this.maxExp = Math.floor(this.maxExp * 1.5);
-            this.maxHp += 20; this.hp = this.maxHp;
+            this.recalculateStats();
             this.levelUpEffectEndTime = Date.now() + 1000;
+            this.unspentStatPoints++;
+        }
+
+        if (
+            this.unspentStatPoints > 0 &&
+            this.hasUpgradeableStat() &&
+            typeof this.onLevelUp === 'function'
+        ) {
+            this.onLevelUp();
         }
     }
 
@@ -178,6 +307,54 @@ export class Player extends Entity {
         this.isInvincible = true;
         this.invincibleEndTime = Date.now() + 800;
         return false;
+    }
+
+    recalculateStats() {
+        this.maxHp = this.baseMaxHp + this.stats.health * 20;
+        this.speed = this.baseSpeed + Math.max(1.75, this.stats.speed * 0.1);
+        this.maxvx = this.baseMaxVx + this.stats.speed * 0.5;
+        this.attackDamageMultiplier = 1 + this.stats.damage * 0.02;
+        this.regenAmount = 5 + this.stats.regen * 2;
+        this.cooldownReduction = Math.min(0.45, this.stats.cooldown * 0.05);
+    }
+
+    getCooldownReduction() {
+        return this.cooldownReduction;
+    }
+
+    getDamageMultiplier() {
+        return this.attackDamageMultiplier;
+    }
+
+    getAttackPower() {
+        return 15 * this.getDamageMultiplier();
+    }
+
+    getRegenAmount() {
+        return this.regenAmount;
+    }
+
+    upgradeStat(stat) {
+        if (!(stat in this.stats)) return false;
+
+        if (this.stats[stat] >= this.maxStats[stat]) {
+            return false;
+        }
+
+        this.stats[stat]++;
+
+        this.recalculateStats();
+
+        if (stat === 'health') {
+            this.hp = Math.min(this.maxHp, this.hp + 15);
+        }
+
+        return true;
+    }
+    hasUpgradeableStat() {
+        return Object.keys(this.stats).some(
+            stat => this.stats[stat] < this.maxStats[stat]
+        );
     }
 
     // 🔥 삭제되었던 핵심 이동 및 업데이트 로직 복구
@@ -202,10 +379,35 @@ export class Player extends Entity {
                 this.vx *= 0.1;
             }
         } else {
+            const hpRatio = this.hp / this.maxHp;
+
+            if (this.hasEffect("slowness")) {
+                this.movementSlowness = 0.5;
+            }
+            else if (hpRatio < 0.25) {
+                this.movementSlowness = 0.2;
+            }
+            else if (hpRatio < 0.5) {
+                this.movementSlowness = 0.1;
+            }
+            else if (this.movementSlowness < 0.01) {
+                this.movementSlowness = 0;
+            }
+
+            let speedMultiplier = 1;
+            if (this.hasEffect("slowness")) {
+                speedMultiplier = 0.3;
+            } else if (hpRatio < 0.25) {
+                speedMultiplier = 0.7;
+            } else if (hpRatio < 0.5) {
+                speedMultiplier = 0.9;
+            }
+
+            const currentMaxVx = this.maxvx * speedMultiplier;
             if (keys['ArrowLeft'] || keys['a']) this.vx -= this.speed * (1 - this.movementSlowness);
             if (keys['ArrowRight'] || keys['d']) this.vx += this.speed * (1 - this.movementSlowness);
-            if (Math.abs(this.vx) > this.maxvx && !this.isDashing) {
-                this.vx = this.maxvx * Math.sign(this.vx);
+            if (Math.abs(this.vx) > currentMaxVx && !this.isDashing) {
+                this.vx = currentMaxVx * Math.sign(this.vx);
             }
 
             const centerX = this.x + this.width / 2;
@@ -225,6 +427,11 @@ export class Player extends Entity {
         if (this.isInvincible && now > this.invincibleEndTime) this.isInvincible = false;
         if (this.isAttacking && now > this.attackEndTime) this.isAttacking = false;
         if (this.isParrying && now > this.parryEndTime) this.isParrying = false;
+        Object.values(this.effects).forEach(effect => {
+            if (effect.endTime < now) {
+                delete this.effects[effect.name];
+            }
+        });
 
         // 3. 궁극기 투사체 발사
         let camera = { x: mouse.x - screenMouse.x, y: mouse.y - screenMouse.y }
@@ -250,15 +457,9 @@ export class Player extends Entity {
             }
         }
         this.movementSlowness *= 0.9;
-
-        if (this.movementSlowness < 0.01) {
-            this.movementSlowness = 0;
-        }
-
-        if (this.bleeding && this.bleedingEndTime < now) this.bleeding = false;
         //자연 회복
-        if (this.healCoolEndTime > now || this.bleeding) return;
-        this.hp = Math.min(this.maxHp, this.hp + 5 * (this.hp / this.maxHp));
+        if (this.healCoolEndTime > now || this.hasEffect('bleed')) return;
+        this.hp = Math.min(this.maxHp, this.hp + this.getRegenAmount() * (this.hp / this.maxHp));
         this.healCoolEndTime = now + 1000;
     }
 
@@ -331,59 +532,8 @@ export class Player extends Entity {
 // class.js - Enemy 클래스 캡슐화 완료
 
 export class Enemy extends Entity {
-    constructor(x, y, type = "NOTHING") {
+    constructor(x, y) {
         super(x, y, 40, 40, 2);
-
-        this.type = type;
-
-        // ==========================================
-        // 기본 스탯
-        // ==========================================
-        this.hp = 50;
-        this.maxHp = 50;
-        this.expReward = 20;
-        this.damage = 15;
-
-        this.color = "red";
-
-        // ==========================================
-        // 타입별 스탯
-        // ==========================================
-        switch (this.type) {
-
-            // 슬라임
-            case "slime":
-                this.hp = 35;
-                this.maxHp = 35;
-
-                this.damage = 8;
-                this.expReward = 15;
-
-                this.color = "rgba(100, 255, 120, 0.7)";
-                break;
-
-            // 돌 몬스터
-            case "rock":
-                this.hp = 50;
-                this.maxHp = 50;
-
-                this.damage = 35;
-                this.expReward = 50;
-
-                this.color = "#888";
-                break;
-
-            // 기본 적
-            default:
-                this.hp = 60;
-                this.maxHp = 60;
-
-                this.damage = 15;
-                this.expReward = 20;
-
-                this.color = "#e74c3c";
-                break;
-        }
 
         // ==========================================
         // 전투 상태
@@ -410,413 +560,26 @@ export class Enemy extends Entity {
 
         this.facingDirection =
             Math.random() > 0.5 ? 1 : -1;
+        this.ai = null;
+
+        if (new.target === Enemy) {
+            throw new Error("Enemy is abstract and cannot be instantiated directly");
+        }
     }
 
     update(player) {
-        const now = Date.now();
-
-        // ==========================================
-        // 안전 초기화
-        // ==========================================
-        if (isNaN(this.patrolTimer) || this.patrolTimer == null) {
-            this.patrolTimer = 0;
-        }
-
-        // ==========================================
-        // 기준 좌표 계산
-        // ==========================================
-        const pCenterX = player.x + player.width / 2;
-        const pCenterY = player.y + player.height / 2;
-
-        const centerX = this.x + this.width / 2;
-        const centerY = this.y + this.height / 2;
-
-        const dx = pCenterX - centerX;
-        const dy = pCenterY - centerY;
-
-        const dist = Math.sqrt(dx * dx + dy * dy);
-
-        // ==========================================
-        // 방향 갱신
-        // ==========================================
-        if (dx > 0) this.facingDirection = 1;
-        else this.facingDirection = -1;
-
-        // ==========================================
-        // 타입별 AI
-        // ==========================================
-        switch (this.type) {
-
-            // ##################################################
-            // 슬라임
-            // ##################################################
-            case "slime": {
-
-                this.detectRadius = 500;
-                this.patrolSpeed = 1.5;
-                this.chaseSpeed = 4;
-
-                // 공격 종료
-                if (this.isAttacking && now > this.attackEndTime) {
-                    this.isAttacking = false;
-                }
-
-                // 점프 타이머
-                if (!this.lastJumpTime) {
-                    this.lastJumpTime = 0;
-                }
-
-                // ==========================================
-                // 공격 준비
-                // ==========================================
-                if (this.isPreparingAttack) {
-
-                    this.vx *= 0.7;
-
-                    // 떨림
-                    this.vx += (Math.random() - 0.5) * 1.2;
-
-                    if (now > this.attackPrepEndTime) {
-
-                        this.isPreparingAttack = false;
-                        this.isAttacking = true;
-
-                        this.attackEndTime = now + 350;
-                        this.attackCooldownTime = now + 1500;
-
-                        // 낮고 빠른 공격 점프
-                        this.vx = Math.sign(dx) * 18;
-                        this.vy = -4;
-                    }
-
-                    return;
-                }
-
-                // ==========================================
-                // 공격 중
-                // ==========================================
-                if (this.isAttacking) {
-                    return;
-                }
-
-                // ==========================================
-                // 플레이어 감지
-                // ==========================================
-                if (
-                    Math.abs(dx) < this.detectRadius &&
-                    Math.abs(dy) < 220
-                ) {
-
-                    // 가까우면 공격 준비
-                    if (
-                        dist < 90 &&
-                        this.isGrounded &&
-                        now > this.attackCooldownTime
-                    ) {
-
-                        this.isPreparingAttack = true;
-                        this.attackPrepEndTime = now + 220;
-
-                        this.vx *= 0.3;
-                    }
-
-                    // 슬라임 점프 이동
-                    else {
-
-                        if (
-                            this.isGrounded &&
-                            now > this.lastJumpTime + 500
-                        ) {
-
-                            this.lastJumpTime = now;
-
-                            this.vx = Math.sign(dx) * (
-                                this.chaseSpeed +
-                                Math.random() * 2
-                            );
-
-                            this.vy = -(7 + Math.random() * 2);
-                        }
-                    }
-
-                    this.patrolTimer = 0;
-                }
-
-                // ==========================================
-                // 배회
-                // ==========================================
-                else {
-
-                    this.patrolTimer--;
-
-                    if (
-                        this.patrolTimer <= 0 ||
-                        this.isTouchingLeftWall ||
-                        this.isTouchingRightWall
-                    ) {
-
-                        this.facingDirection =
-                            Math.random() > 0.5 ? 1 : -1;
-
-                        this.patrolTimer =
-                            Math.floor(Math.random() * 120) + 60;
-                    }
-
-                    // 배회도 점프로 이동
-                    if (
-                        this.isGrounded &&
-                        now > this.lastJumpTime + 700
-                    ) {
-
-                        this.lastJumpTime = now;
-
-                        this.vx = this.facingDirection * (
-                            this.patrolSpeed +
-                            Math.random()
-                        );
-
-                        this.vy = -(5 + Math.random() * 2);
-                    }
-                }
-
-                break;
-            }
-
-            // ##################################################
-            // 바위 몬스터
-            // ##################################################
-            case "rock": {
-
-                this.detectRadius = 350;
-                this.patrolSpeed = 0.2;
-                this.chaseSpeed = 1.2;
-
-                // 공격 종료
-                if (this.isAttacking && now > this.attackEndTime) {
-                    this.isAttacking = false;
-                }
-
-                // ==========================================
-                // 플레이어 발견
-                // ==========================================
-                if (
-                    Math.abs(dx) < this.detectRadius &&
-                    Math.abs(dy) < 160
-                ) {
-
-                    // 진짜 가까울 때만 움직임
-                    if (dist < 120) {
-
-                        this.vx += Math.sign(dx) * 0.15;
-
-                        if (this.vx > this.chaseSpeed) {
-                            this.vx = this.chaseSpeed;
-                        }
-
-                        if (this.vx < -this.chaseSpeed) {
-                            this.vx = -this.chaseSpeed;
-                        }
-                    }
-
-                    // 초근접 공격
-                    if (
-                        dist < 70 &&
-                        this.isGrounded &&
-                        now > this.attackCooldownTime
-                    ) {
-
-                        this.isAttacking = true;
-
-                        this.attackEndTime = now + 500;
-                        this.attackCooldownTime = now + 2600;
-
-                        // 낮은 점프 + 강한 돌진
-                        this.vy = -6;
-                        this.vx = Math.sign(dx) * 16;
-                    }
-
-                    this.patrolTimer = 0;
-                }
-
-                // ==========================================
-                // 배회
-                // ==========================================
-                else {
-
-                    this.patrolTimer--;
-
-                    if (
-                        this.patrolTimer <= 0 ||
-                        this.isTouchingLeftWall ||
-                        this.isTouchingRightWall
-                    ) {
-
-                        this.facingDirection =
-                            Math.random() > 0.5 ? 1 : -1;
-
-                        this.patrolTimer =
-                            Math.floor(Math.random() * 240) + 120;
-                    }
-
-                    // 거의 안 움직임
-                    this.vx += this.facingDirection * 0.02;
-
-                    if (this.vx > this.patrolSpeed) {
-                        this.vx = this.patrolSpeed;
-                    }
-
-                    if (this.vx < -this.patrolSpeed) {
-                        this.vx = -this.patrolSpeed;
-                    }
-                }
-
-                break;
-            }
-
-            // ##################################################
-            // 기본 AI
-            // ##################################################
-            default: {
-
-                this.detectRadius = 400;
-                this.patrolSpeed = 1.0;
-                this.chaseSpeed = 3;
-
-                if (
-                    Math.abs(dx) < this.detectRadius &&
-                    Math.abs(dy) < 200
-                ) {
-
-                    this.vx += Math.sign(dx) * 0.3;
-
-                    if (this.vx > this.chaseSpeed) {
-                        this.vx = this.chaseSpeed;
-                    }
-
-                    if (this.vx < -this.chaseSpeed) {
-                        this.vx = -this.chaseSpeed;
-                    }
-
-                    this.patrolTimer = 0;
-                }
-
-                else {
-
-                    this.patrolTimer--;
-
-                    if (
-                        this.patrolTimer <= 0 ||
-                        this.isTouchingLeftWall ||
-                        this.isTouchingRightWall
-                    ) {
-
-                        this.facingDirection =
-                            Math.random() > 0.5 ? 1 : -1;
-
-                        this.patrolTimer =
-                            Math.floor(Math.random() * 120) + 60;
-                    }
-
-                    this.vx += this.facingDirection * 0.1;
-
-                    if (this.vx > this.patrolSpeed) {
-                        this.vx = this.patrolSpeed;
-                    }
-
-                    if (this.vx < -this.patrolSpeed) {
-                        this.vx = -this.patrolSpeed;
-                    }
-                }
-
-                break;
-            }
-        }
+        this.ai?.update(this, player);
     }
 
     takeDamage(amount) {
         this.hp -= amount;
         this.state = "chase";
     }
-
     draw(ctx) {
-
-        // 이미지 있으면 이미지 렌더
-        if (asset.image[this.type]) {
-
-            ctx.drawImage(
-                asset.image[this.type]["normal"],
-                this.x,
-                this.y,
-                this.width,
-                this.height
-            );
-
-        } else {
-
-            let drawColor = this.color;
-
-            // 공격 준비 효과
-            if (this.isPreparingAttack) {
-
-                if (Math.floor(Date.now() / 100) % 2 === 0) {
-                    drawColor = "white";
-                }
-
-                ctx.fillStyle = "red";
-                ctx.font = "bold 24px Arial";
-                ctx.textAlign = "center";
-
-                ctx.fillText(
-                    "!",
-                    this.x + this.width / 2,
-                    this.y - 15
-                );
-            }
-
-            // 공격 중 효과
-            if (this.isAttacking) {
-                ctx.shadowBlur = 15;
-                ctx.shadowColor = "red";
-            }
-
-            // 슬라임 반투명 처리
-            if (this.type === "slime") {
-                ctx.globalAlpha = 0.7;
-            }
-
-            ctx.fillStyle = drawColor;
-
-            ctx.fillRect(
-                this.x,
-                this.y,
-                this.width,
-                this.height
-            );
-
-            ctx.globalAlpha = 1;
-
-            ctx.shadowBlur = 0;
-
-            // HP 바 배경
-            ctx.fillStyle = "#333";
-
-            ctx.fillRect(
-                this.x,
-                this.y - 10,
-                this.width,
-                5
-            );
-
-            // HP 바
-            ctx.fillStyle = "#2ecc71";
-
-            ctx.fillRect(
-                this.x,
-                this.y - 10,
-                this.width * (this.hp / this.maxHp),
-                5
-            );
-        }
+        throw new Error("draw() must be implemented by subclass");
+    }
+    onHit() {
+        throw new Error("onHit must be implemented");
     }
     death() {
         // 기본: 그냥 삭제 플래그

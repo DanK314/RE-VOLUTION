@@ -101,8 +101,18 @@ button:hover {
     font-weight: bold;
 }
 
+.stat-panel {
+    display: flex;
+    justify-content: space-around;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    background-color: #111;
+    border-bottom: 2px solid #333;
+}
+
 .stat {
-    padding: 5px 15px;
+    padding: 5px 12px;
     background-color: #222;
     border-radius: 5px;
 }
@@ -240,4 +250,70 @@ canvas {
     transform: none;
     box-shadow: none;
     border-color: #444;
+}
+
+/* Level-up modal */
+.overlay {
+    position: absolute;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.8);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 20;
+}
+
+.modal-card {
+    width: min(560px, 90%);
+    padding: 24px;
+    border-radius: 16px;
+    background: rgba(10, 10, 15, 0.96);
+    border: 1px solid #444;
+    box-shadow: 0 0 40px rgba(0, 0, 0, 0.7);
+    text-align: center;
+    color: #f5f5f5;
+}
+
+.modal-card h2 {
+    margin-bottom: 10px;
+    font-size: 2rem;
+}
+
+.modal-card p {
+    margin-bottom: 16px;
+    color: #ccc;
+}
+
+.stat-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(120px, 1fr));
+    gap: 12px;
+    margin-bottom: 16px;
+}
+
+.stat-option {
+    padding: 16px;
+    border-radius: 14px;
+    background: #222;
+    border: 1px solid #333;
+    color: #fff;
+    cursor: pointer;
+    transition: transform 0.2s ease, border-color 0.2s ease, background 0.2s ease;
+}
+
+.stat-option:hover {
+    transform: translateY(-2px);
+    border-color: #81ecec;
+    background: #2f3b46;
+}
+
+.stat-option strong {
+    display: block;
+    margin-bottom: 8px;
+    font-size: 1rem;
+}
+
+.modal-note {
+    color: #999;
+    font-size: 0.95rem;
 }

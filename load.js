@@ -23,14 +23,21 @@ function ensureAssetPath(type, character, action) {
     if (!asset[type][character][action]) asset[type][character][action] = [];
 }
 
-function loadImage(character, action, frame, src) {
+function loadImage(character, action, src, info = {}) {
     ensureAssetPath('image', character, action);
+
     totalAssets++;
+
     const img = new Image();
     img.src = src;
+
     img.onload = checkLoad;
     img.onerror = () => console.error(`이미지 로드 실패: ${src}`);
-    asset.image[character][action][frame] = img;
+
+    asset.image[character][action] = {
+        image: img,
+        ...info
+    };
 }
 
 function loadSound(character, action, frame, src) {
@@ -49,15 +56,20 @@ function loadSound(character, action, frame, src) {
 
 const assetManifest = {
     images: [
-        // { 캐릭터명, 동작, 프레임 수, 파일 경로(프레임 번호 앞까지) }
-        { char: 'player', action: 'walk', frames: 16, path: 'assets/images/player/walk/frame_' },
-        { char: 'player', action: 'attack', frames: 16, path: 'assets/images/player/attack/frame_' },
-        { char: 'enemy_slime', action: 'idle', frames: 16, path: 'assets/images/enemy/slime_idle_' }
+        // { 캐릭터명, 동작, 파일 경로, 가로, 세로, 프레임 수 }
+        {
+            char: 'enemy_slime',
+            action: 'idle',
+
+            path: './asset/images/enemy/slime_idle.png',
+
+            frameWidth: 32,
+            frameHeight: 32,
+            frames: 8
+        }
     ],
     sounds: [
         // 사운드는 보통 프레임이 없으므로 단일 파일 경로만 적습니다.
-        { char: 'player', action: 'walk', path: 'assets/sounds/player_walk.mp3' },
-        { char: 'player', action: 'attack', path: 'assets/sounds/player_attack.mp3' }
     ]
 };
 
@@ -67,9 +79,16 @@ export function initLoad() {
 
     // 1. 이미지 리스트를 순회하며 자동 로드
     assetManifest.images.forEach(item => {
-        for (let i = 0; i < item.frames; i++) {
-            loadImage(item.char, item.action, i, `${item.path}${i}.png`);
-        }
+        loadImage(
+            item.char,
+            item.action,
+            item.path,
+            {
+                frameWidth: item.frameWidth,
+                frameHeight: item.frameHeight,
+                frames: item.frames
+            }
+        );
     });
 
     // 2. 사운드 리스트를 순회하며 자동 로드
