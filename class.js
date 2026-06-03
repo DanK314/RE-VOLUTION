@@ -103,6 +103,20 @@ export class Particle {
         const prevAlpha = ctx.globalAlpha;
         ctx.globalAlpha = prevAlpha * this.life;
 
+
+        const glowSize = this.size * 0.1;
+
+        ctx.fillStyle = 'white';
+
+        ctx.fillRect(
+            this.x-glowSize,
+            this.y-glowSize,
+            this.size+glowSize*2,
+            this.size+glowSize*2
+        );
+        
+        ctx.globalAlpha = prevAlpha * this.life;
+
         ctx.fillStyle = this.color;
 
         ctx.fillRect(

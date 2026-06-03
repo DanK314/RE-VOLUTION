@@ -43,6 +43,43 @@ let floatingTexts = [
 let gameAnimationFrame;
 let isGameOver = false;
 
+// 배경 요소
+let farHills = [];
+let midHills = [];
+let nearHills = [];
+
+function generateBackground() {
+
+    farHills = [];
+    midHills = [];
+    nearHills = [];
+
+    // 먼 산
+    for (let x = -1000; x < 30000; x += 250) {
+        farHills.push({
+            x,
+            y: 180 + Math.random() * 100
+        });
+    }
+
+    // 중간 산
+    for (let x = -1000; x < 30000; x += 180) {
+        midHills.push({
+            x,
+            y: 250 + Math.random() * 120
+        });
+    }
+
+    // 가까운 숲/언덕
+    for (let x = -1000; x < 30000; x += 120) {
+        nearHills.push({
+            x,
+            y: 350 + Math.random() * 80
+        });
+    }
+}
+generateBackground();
+
 const keys = {};
 const mouse = { x: 0, y: 0 };
 
@@ -564,12 +601,12 @@ function gameLoop() {
             for (let i = 0; i < 2; i++) {
                 particles.push(
                     new Particle(
-                    player.x + player.width / 2 + (Math.random() - 0.5) * 20,
-                    player.y + player.height / 2 + (Math.random() - 0.5) * 30,
-                    (Math.random() - 0.5) * 1,
-                    Math.random() * -1,
-                    "#0000aa"
-                    , 2, 0.8
+                        player.x + player.width / 2 + (Math.random() - 0.5) * 20,
+                        player.y + player.height / 2 + (Math.random() - 0.5) * 30,
+                        (Math.random() - 0.5) * 1,
+                        Math.random() * -1,
+                        "#0000aa"
+                        , 2, 0.8
                     )
                 );
             }
@@ -646,7 +683,11 @@ function gameLoop() {
         camera.x += (targetX - camera.x) * camera.easing;
         camera.y += (targetY - camera.y) * camera.easing;
 
+        const maxCameraY = 300;
+
         if (camera.x < 0) camera.x = 0;
+        if (camera.y < 0) camera.y = 0;
+        if (camera.y > maxCameraY) camera.y = maxCameraY;
 
         camera.shakeAmount *= 0.9;
     }
@@ -656,8 +697,116 @@ function gameLoop() {
     // 10. 렌더
     // =========================
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-    ctx.fillStyle = "#92afaf";
+    const grad = ctx.createLinearGradient(0, 0, 0, canvas.height);
+    //dark background
+    grad.addColorStop(0, "#1B2735");
+    grad.addColorStop(1, "#3A506B");
+
+
+    ctx.fillStyle = grad;
     ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    // ===== 배경 레이어 1 (가장 멀리) =====
+
+    ctx.globalAlpha = 0.25;
+    ctx.fillStyle = "#6C7A89";
+
+    ctx.beginPath();
+
+    ctx.moveTo(
+        farHills[0].x - camera.x * 0.03,
+        canvas.height
+    );
+
+    for (const p of farHills) {
+        ctx.lineTo(
+            p.x - camera.x * 0.03,
+            p.y
+        );
+    }
+
+    ctx.lineTo(
+        farHills[farHills.length - 1].x - camera.x * 0.03,
+        canvas.height
+    );
+
+    ctx.closePath();
+    ctx.fill();
+
+    // ===== 배경 레이어 2 (조금 가까움) =====
+
+    ctx.globalAlpha = 0.5;
+    ctx.fillStyle = "#4E6378";
+
+    ctx.beginPath();
+
+    ctx.moveTo(
+        midHills[0].x - camera.x * 0.08,
+        canvas.height
+    );
+
+    for (const p of midHills) {
+        ctx.lineTo(
+            p.x - camera.x * 0.08,
+            p.y
+        );
+    }
+
+    ctx.lineTo(
+        midHills[midHills.length - 1].x - camera.x * 0.08,
+        canvas.height
+    );
+
+    ctx.closePath();
+    ctx.fill();
+
+    // 안개 레이어
+    const fog = ctx.createLinearGradient(
+        0,
+        canvas.height - 400,
+        0,
+        canvas.height - 150
+    );
+
+    fog.addColorStop(0, "rgba(220,230,240,0)");
+    fog.addColorStop(0.5, "rgba(220,230,240,0.05)");
+    fog.addColorStop(1, "rgba(220,230,240,0)");
+
+    ctx.fillStyle = fog;
+    ctx.fillRect(
+        0,
+        canvas.height - 400,
+        canvas.width,
+        250
+    );
+
+    // ===== 배경 레이어 3 (가장 가까움) =====
+    ctx.globalAlpha = 0.8;
+    ctx.fillStyle = "#263238";
+
+    ctx.beginPath();
+
+    ctx.moveTo(
+        nearHills[0].x - camera.x * 0.15,
+        canvas.height
+    );
+
+    for (const p of nearHills) {
+        ctx.lineTo(
+            p.x - camera.x * 0.15,
+            p.y
+        );
+    }
+
+    ctx.lineTo(
+        nearHills[nearHills.length - 1].x - camera.x * 0.15,
+        canvas.height
+    );
+
+    ctx.closePath();
+    ctx.fill();
+
+    ctx.globalAlpha = 1;
 
     ctx.save();
     ctx.translate(-Math.floor(camera.x + sx), -Math.floor(camera.y + sy));

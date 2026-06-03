@@ -14,7 +14,7 @@ export class Boss_Wind extends Enemy {
         this.lastShootTime = 0;
         this.lastDashTime = 0;
         this.isDashing = false;
-        this.expReward = 500; // 처치 시 보상 경험치
+        this.expReward = 3000; // 처치 시 보상 경험치
         this.particles = [];
         this.dying = false;
         this.state = "idle";

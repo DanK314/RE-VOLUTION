@@ -8,6 +8,7 @@ export class Boss_Nature extends Enemy {
         this.width = 120;
         this.height = 120;
         this.speed = 0;
+        this.expReward = 3000;
 
         this.hp = 800;
         this.maxHp = 800;
