@@ -2,6 +2,7 @@
 
 import { getAngle } from "./physics.js";
 import { asset } from "./load.js";
+import { playSound } from "./sound.js";
 
 export class FloatingText {
     constructor(x, y, text, options = {}) {
@@ -109,12 +110,12 @@ export class Particle {
         ctx.fillStyle = 'white';
 
         ctx.fillRect(
-            this.x-glowSize,
-            this.y-glowSize,
-            this.size+glowSize*2,
-            this.size+glowSize*2
+            this.x - glowSize,
+            this.y - glowSize,
+            this.size + glowSize * 2,
+            this.size + glowSize * 2
         );
-        
+
         ctx.globalAlpha = prevAlpha * this.life;
 
         ctx.fillStyle = this.color;
@@ -186,9 +187,30 @@ export class Player extends Entity {
         this.attackHitList = [];
 
         // 스킬 선택 시스템
-        this.selectedSkill = 1;   // 1: 패링, 2: 돌진
-        this.hasDash = false;
-        this.hasUltimate = false;
+        this.skills = [
+            {
+                id: 0,
+                name: "parry",
+                hasSub: false,
+                cooldown: 700,
+                readyAt: 0,
+                has : true
+            },
+            {
+                id: 1,
+                name: "dash",
+                hasSub: true,
+                cooldown: 700,
+                readyAt: 0,
+                sub: {
+                    name: "ultimate",
+                    cooldown: 20000,
+                    readyAt: 0
+                },
+                has : true
+            }
+        ];
+        this.selectedSkill = 0;
 
         // 1번 스킬: 패링
         this.isParrying = false;
@@ -254,25 +276,30 @@ export class Player extends Entity {
     // 우클릭: 선택된 스킬 발동 (패링 or 돌진)
     useSelectedSkill(mouseX, mouseY) {
         const now = Date.now();
-        if (this.selectedSkill === 1) {
+        if (this.selectedSkill === 0) {
             // [1번] 패링
-            if (now < this.parryCooldownTime) return;
+            if (now < this.skills[0].readyAt) return;
             this.isParrying = true;
             this.parryEndTime = now + 250;
-            this.parryCooldownTime = now + 700 * (1 - this.getCooldownReduction());
+            this.skills[0].readyAt = now + this.skills[0].cooldown * (1 - this.getCooldownReduction());
+            if (typeof updateSkillUI === 'function') updateSkillUI(this);
 
             const centerX = this.x + this.width / 2;
             const centerY = this.y + this.height / 2;
             this.parryAngle = Math.atan2(mouseY - centerY, mouseX - centerX);
-        } else if (this.selectedSkill === 2) {
-            if (now < this.dashCooldownTime) return;
+        } else if (this.selectedSkill === 1) {
+            // [2번] 돌진
+            if (now < this.skills[1].readyAt) return;
             this.isDashing = true;
             this.dashEndTime = now + 200; // 0.2초 (200ms) 동안 순식간에 이동!
-            this.dashCooldownTime = now + 3000 * (1 - this.getCooldownReduction());
+            this.skills[1].readyAt = now + this.skills[1].cooldown * (1 - this.getCooldownReduction());
+            if (typeof updateSkillUI === 'function') updateSkillUI(this);
 
             // 엄청난 속도로 돌진! (방향에 맞춰서)
             this.vx = this.facingDirection * 35; // 🔥 기존보다 훨씬 높은 수치!
             this.vy = 0; // 공중에서 대시해도 일직선으로 날아가게 함
+
+            playSound('dash');
 
             // 🌟 핵심: 대시 중에는 마찰력과 중력을 무시합니다!
             this.ignoreFriction = true;
@@ -283,10 +310,10 @@ export class Player extends Entity {
     // Q키: 궁극기 발동
     useUltimate() {
         const now = Date.now();
-        if (this.selectedSkill === 2 && this.hasUltimate && now >= this.ultCooldown) {
+        if (this.selectedSkill === 1 && now > this.skills[1].sub.readyAt) {
             this.isUltActive = true;
-            this.ultEndTime = now + 5000;
-            this.ultCooldown = now + 10000 * (1 - this.getCooldownReduction());
+            this.ultEndTime = now + 1000;
+            this.skills[1].sub.readyAt = now + this.skills[1].sub.cooldown * (1 - this.getCooldownReduction());
         }
     }
 
@@ -329,7 +356,7 @@ export class Player extends Entity {
         this.maxvx = this.baseMaxVx + this.stats.speed * 0.5;
         this.attackDamageMultiplier = 1 + this.stats.damage * 0.02;
         this.regenAmount = 5 + this.stats.regen * 2;
-        this.cooldownReduction = Math.min(0.45, this.stats.cooldown * 0.05);
+        this.cooldownReduction = Math.min(0.25, this.stats.cooldown * 0.02);
     }
 
     getCooldownReduction() {
@@ -459,10 +486,13 @@ export class Player extends Entity {
                         screenMouse.y,
                         screenPlayerX,
                         screenPlayerY
-                    ) + Math.random() - 0.5;
+                    ) + Math.random()*0.2 - 0.1;
                     const speed = 15;
-                    const proj = new Projectile(this.x + this.width / 2, this.y + this.height / 2, Math.cos(angle) * speed, Math.sin(angle) * speed, 'player_blade');
+                    const proj = new Projectile(this.x + this.width / 2, this.y + this.height / 2, Math.cos(angle) * speed, Math.sin(angle) * speed, 'player_magic');
                     proj.isReflected = true;
+
+                    playSound('shoot',true);
+                    
                     shootCb(proj);
                     this.lastUltShootTime = now;
                 }
@@ -596,21 +626,26 @@ export class Enemy extends Entity {
         throw new Error("onHit must be implemented");
     }
     death() {
-        // 기본: 그냥 삭제 플래그
+        // 기본: 그냥 삭제 플래그 + sound
+        playSound('death');
         this.isDead = true;
     }
 }
 export class Projectile {
-    constructor(x, y, vx, vy, type) {
+    constructor(x, y, vx, vy, type, color = null) {
         this.x = x; this.y = y;
         this.vx = vx; this.vy = vy;
         this.radius = 8;
         this.isReflected = false;
         this.type = type;
+        if (color) this.color = color;
+        else if (type === 'player_magic') this.color = 'white';
+        else if (type === 'boss_magic') this.color = 'magenta';
+        else this.color = 'red';
 
         // 🔥 투사체별 데미지 확장성 부여
-        if (type === 'boss_magic') this.damage = 25;
-        else if (type === 'player_blade') this.damage = 50;
+        if (type === 'boss_magic' || type === 'reflected') this.damage = 25;
+        else if (type === 'player_magic') this.damage = 50;
         else this.damage = 10;
     }
 
@@ -620,10 +655,17 @@ export class Projectile {
     }
 
     draw(ctx) {
+        ctx.save();
+        if (this.isReflected) {
+            //if reflected, add a glow effect
+            ctx.shadowBlur = 15;
+            ctx.shadowColor = 'white';
+        }
         ctx.beginPath();
         ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
-        ctx.fillStyle = this.isReflected ? 'gold' : (this.type === 'boss_magic' ? 'purple' : 'red');
+        ctx.fillStyle = this.color;
         ctx.fill();
         ctx.closePath();
+        ctx.restore();
     }
 }

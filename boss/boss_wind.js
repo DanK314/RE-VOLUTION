@@ -1,4 +1,5 @@
 import { Enemy, Projectile, Particle } from "../class.js";
+import { playSound } from "../sound.js";
 
 export class Boss_Wind extends Enemy {
     constructor(x, y) {
@@ -240,6 +241,7 @@ export class Boss_Wind extends Enemy {
                             )
                         );
                     }
+                    playSound('shoot',true);
 
                     this.stateEndTime =
                         now + 700;
@@ -281,6 +283,7 @@ export class Boss_Wind extends Enemy {
                                 'boss_magic'
                             )
                         );
+                        playSound('shoot',true)
 
                         shots++;
 
@@ -313,6 +316,8 @@ export class Boss_Wind extends Enemy {
                     this.vx = this.dashVX;
                     this.vy = this.dashVY;
 
+                    playSound('dash',true);
+
                     this.stateEndTime =
                         now + 300;
                 }
@@ -342,6 +347,8 @@ export class Boss_Wind extends Enemy {
 
                 this.vy =
                     Math.sin(angle) * 16;
+
+                playSound('dash',true);
             }
         }
         const range2 = 500;
@@ -641,6 +648,7 @@ export class Boss_Wind extends Enemy {
     death() {
         this.dying = true;
         this.fade = 1;
+        playSound('wind_boss_death')
 
         const cx = this.x + this.width / 2;
         const cy = this.y + this.height / 2;

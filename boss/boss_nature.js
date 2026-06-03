@@ -10,8 +10,8 @@ export class Boss_Nature extends Enemy {
         this.speed = 0;
         this.expReward = 3000;
 
-        this.hp = 800;
-        this.maxHp = 800;
+        this.hp = 1000;
+        this.maxHp = 1000;
 
         this.color = "darkgreen";
 
@@ -19,15 +19,15 @@ export class Boss_Nature extends Enemy {
 
         this.minions = [];
 
-        this.summonCooldown = 3000;
+        this.summonCooldown = 3500;
         this.lastSummonTime = 0;
 
         // 회복
-        this.healInterval = 1000;
+        this.healInterval = 700;
         this.lastHealTime = 0;
 
         // 뿌리 공격
-        this.rootCooldown = 4000;
+        this.rootCooldown = 1000;
         this.lastRootTime = 0;
 
         this.enraged = false;

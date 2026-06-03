@@ -11,6 +11,8 @@ import { Boss_Nature } from './boss/boss_nature.js';
 import { Slime } from './enemy/Slime.js';
 import { Rock } from './enemy/Rock.js';
 
+import { playSound } from './sound.js';
+
 // UI 요소
 const mainScreen = document.getElementById('main-screen');
 const gameScreen = document.getElementById('game-screen');
@@ -80,6 +82,88 @@ function generateBackground() {
 }
 generateBackground();
 
+const skillUI = document.getElementById("skill-ui");
+
+const skillBar = {
+    mainFill: null,
+    subFill: null,
+    label: null,
+    subLabel: null
+};
+
+function createSkillUI(player) {
+    skillUI.innerHTML = "";
+
+    const wrap = document.createElement("div");
+    wrap.className = "skill-vertical";
+
+    const label = document.createElement("div");
+    label.className = "skill-label";
+
+    const mainBar = document.createElement("div");
+    mainBar.className = "bar vertical-main";
+
+    const mainFill = document.createElement("div");
+    mainFill.className = "fill";
+
+    mainBar.appendChild(mainFill);
+
+    wrap.appendChild(label);
+    wrap.appendChild(mainBar);
+
+    const subLabel = document.createElement("div");
+    subLabel.className = "skill-sub-label";
+
+    const subBar = document.createElement("div");
+    subBar.className = "bar vertical-sub";
+
+    const subFill = document.createElement("div");
+    subFill.className = "fill sub";
+
+    subBar.appendChild(subFill);
+
+    wrap.appendChild(subLabel);
+    wrap.appendChild(subBar);
+
+    skillUI.appendChild(wrap);
+
+    skillBar.mainFill = mainFill;
+    skillBar.subFill = subFill;
+    skillBar.label = label;
+    skillBar.subLabel = subLabel;
+}
+
+function updateSkillUI(player) {
+    const skill = player.skills[player.selectedSkill];
+    const now = Date.now();
+
+    if (!skill) return;
+
+    const cd = skill.cooldown * (1 - player.getCooldownReduction());
+
+    skillBar.label.innerText = skill.name;
+
+    const remaining = skill.readyAt - now;
+    const mainRatio = cd > 0 ? Math.min(1, Math.max(0, 1 - remaining / cd)) : 0;
+    const displayedMainRatio = remaining > cd - 50 ? 0 : mainRatio;
+
+    skillBar.mainFill.style.height = `${displayedMainRatio * 100}%`;
+
+    if (skill.hasSub && skill.sub) {
+        const subCd = skill.sub.cooldown * (1 - player.getCooldownReduction());
+        const subRemaining = skill.sub.readyAt - now;
+
+        const subRatio = subCd > 0 ? Math.min(1, Math.max(0, 1 - subRemaining / subCd)) : 0;
+        const displayedSubRatio = subRemaining > subCd - 50 ? 0 : subRatio;
+
+        skillBar.subLabel.innerText = skill.sub.name;
+        skillBar.subFill.style.height = `${displayedSubRatio * 100}%`;
+    } else {
+        skillBar.subLabel.innerText = "";
+        skillBar.subFill.style.height = "0%";
+    }
+}
+
 const keys = {};
 const mouse = { x: 0, y: 0 };
 
@@ -146,15 +230,15 @@ window.addEventListener('keydown', (e) => {
 
     // 숫자 1: 패링 선택
     if (e.key === '1') {
-        player.selectedSkill = 1;
+        player.selectedSkill = 0;
     }
     // 숫자 2: 보스 잡은 후 돌진 선택
-    if (e.key === '2' && player.hasDash) {
-        player.selectedSkill = 2;
+    if (e.key === '2' && player.skills[1].has) {
+        player.selectedSkill = 1;
     }
 
     // Q 키: 2번이 선택되어 있을 때만 궁극기 바로 발동
-    if (e.key.toLowerCase() === 'q' && player.selectedSkill === 2) {
+    if (e.key.toLowerCase() === 'q' && player.selectedSkill === 1) {
         player.useUltimate();
     }
 });
@@ -199,12 +283,6 @@ function chooseStat(stat) {
     }
 }
 
-statButtons.forEach(button => {
-    button.addEventListener('click', () => {
-        chooseStat(button.dataset.stat);
-    });
-});
-
 // main.js의 updateUI 함수 수정
 function updateUI() {
     hpValue.innerText = `${Math.max(0, Math.floor(player.hp))} / ${player.maxHp}`;
@@ -215,7 +293,7 @@ function updateUI() {
     const slot1 = document.getElementById('slot-1');
     const slot2 = document.getElementById('slot-2');
 
-    if (player.selectedSkill === 1) {
+    if (player.selectedSkill === 0) {
         slot1.classList.add('active');
         slot2.classList.remove('active');
     } else {
@@ -223,7 +301,7 @@ function updateUI() {
         slot2.classList.add('active');
     }
     // 🔥 2번 슬롯(돌진) 잠금 및 활성화 로직
-    if (!player.hasDash) {
+    if (!player.skills[1].has) {
         slot2.classList.add('locked');
         slot2.querySelector('.icon').innerText = "🔒"; // 자물쇠 아이콘
         slot2.querySelector('.skill-name').innerText = "잠김";
@@ -234,7 +312,7 @@ function updateUI() {
         slot2.querySelector('.skill-name').innerText = "돌진";
 
         // 돌진이 해금된 상태에서만 active 클래스 적용
-        if (player.selectedSkill === 2) {
+        if (player.selectedSkill === 1) {
             slot2.classList.add('active');
         } else {
             slot2.classList.remove('active');
@@ -246,6 +324,8 @@ function updateUI() {
     if (statSpeedValue) statSpeedValue.innerText = player.stats.speed;
     if (statRegenValue) statRegenValue.innerText = player.stats.regen;
     if (statCooldownValue) statCooldownValue.innerText = `${Math.round(player.cooldownReduction * 100)}%`;
+
+    updateSkillUI(player);
 }
 
 
@@ -281,6 +361,7 @@ function startGame(isRevive = false) {
     if (player) {
         player.onLevelUp = openStatUpgradeModal;
         player.recalculateStats?.();
+        createSkillUI(player);
     }
 
     // 몬스터 소환
@@ -374,8 +455,7 @@ function gameLoop() {
             if (enemy.hp <= 0 && !enemy.dying) {
                 player.gainExp(enemy.expReward || 10);
                 if (enemy instanceof Boss_Wind) {
-                    player.hasDash = true;
-                    player.hasUltimate = true;
+                    player.skills[1].has = true; // 돌진 스킬 해금
                 }
                 enemy.death?.();
             }
@@ -434,7 +514,7 @@ function gameLoop() {
                 if (!player.dashHitList) player.dashHitList = [];
 
                 if (!player.dashHitList.includes(enemy)) {
-                    enemy.takeDamage(40 * player.getDamageMultiplier());
+                    enemy.takeDamage(20 * player.getDamageMultiplier());
 
                     enemy.vx = player.vx > 0 ? 15 : (player.vx < 0 ? -15 : 0);
                     enemy.vy = -8;
@@ -463,6 +543,8 @@ function gameLoop() {
 
                         enemy.isAttacking = false;
 
+                        playSound("crit_hit");
+
                         if (camera) camera.shakeAmount = 20;
                     }
 
@@ -471,6 +553,7 @@ function gameLoop() {
                     enemy.isAttacking = false;
                     const hitEffect = enemy.onHit();
                     player.takeEffect(hitEffect);
+                    playSound("hit");
                     if (camera) camera.shakeAmount = 5;
                 }
             }
@@ -605,7 +688,7 @@ function gameLoop() {
                         player.y + player.height / 2 + (Math.random() - 0.5) * 30,
                         (Math.random() - 0.5) * 1,
                         Math.random() * -1,
-                        "#0000aa"
+                        "#00aa00"
                         , 2, 0.8
                     )
                 );
@@ -658,6 +741,8 @@ function gameLoop() {
 
                         player.attackHitList.push(enemy);
 
+                        playSound("hit");
+
                         if (camera) camera.shakeAmount = 5;
                     }
                 }
@@ -686,7 +771,7 @@ function gameLoop() {
         const maxCameraY = 300;
 
         if (camera.x < 0) camera.x = 0;
-        if (camera.y < 0) camera.y = 0;
+        if (camera.y < -150) camera.y = -150;
         if (camera.y > maxCameraY) camera.y = maxCameraY;
 
         camera.shakeAmount *= 0.9;
