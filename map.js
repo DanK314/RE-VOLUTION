@@ -145,7 +145,7 @@ export function generateRPGMap(randomChunkCount = 10) {
     // 보스 뒤 낭떠러지
     // =========================
 
-    const gapWidth = 10;
+    const gapWidth = 15;
 
     // 보스맵 마지막 벽 높이 기준
     // 보통 바닥이 10~11줄이면:

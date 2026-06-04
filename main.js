@@ -185,7 +185,7 @@ const statButtons = document.querySelectorAll('.stat-option');
 let isStatUpgradeOpen = false;
 
 // --- 입력 관리 ---
-window.addEventListener('keyup', (e) => keys[e.key] = false);
+window.addEventListener('keyup', (e) => keys[e.key.toLowerCase()] = false);
 // main.js - 마우스 입력 부분 수정
 
 // 화면(모니터) 상의 순수 마우스 좌표를 저장할 변수
@@ -398,6 +398,22 @@ function gameLoop() {
         }
 
         player.update(keys, mouse, screenMouse, (p) => projectiles.push(p));
+
+        // =========================
+        // 2.5 런닝 파티클
+        if (player.isSprinting && !player.isDashing) {
+            for (let i = 0; i < 2; i++) {
+                particles.push(new Particle(
+                    player.x + player.width / 2 + (Math.random() - 0.5) * 24,
+                    player.y + player.height + 4,
+                    (Math.random() - 0.5) * 0.4,
+                    Math.random() * 0.4 + 0.6,
+                    '#a8ff9b',
+                    3,
+                    0.5
+                ));
+            }
+        }
 
         // =========================
         // 적 스폰
@@ -923,6 +939,22 @@ function gameLoop() {
             e.draw(ctx);
         }
     });
+
+    const barWidth = 52;
+    const barHeight = 8;
+    const barX = player.x + player.width / 2 - barWidth / 2;
+    const barY = player.y - 14;
+
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.65)';
+    ctx.fillRect(barX, barY, barWidth, barHeight);
+
+    const fillAmount = Math.max(0, Math.min(1, player.stamina / player.maxStamina));
+    ctx.fillStyle = '#ccbf2e';
+    ctx.fillRect(barX + 1, barY + 1, (barWidth - 2) * fillAmount, barHeight - 2);
+
+    ctx.strokeStyle = 'rgba(255,255,255,0.25)';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(barX, barY, barWidth, barHeight);
 
     ctx.restore();
     ctx.save();

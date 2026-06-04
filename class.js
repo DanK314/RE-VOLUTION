@@ -169,6 +169,8 @@ export class Player extends Entity {
 
         this.baseMaxHp = 100;
         this.baseSpeed = 7;
+        this.stamina = 100;
+        this.maxStamina = 100;
         this.baseMaxVx = 10;
         this.attackDamageMultiplier = 1;
         this.regenAmount = 5;
@@ -194,7 +196,7 @@ export class Player extends Entity {
                 hasSub: false,
                 cooldown: 700,
                 readyAt: 0,
-                has : true
+                has: true
             },
             {
                 id: 1,
@@ -204,10 +206,10 @@ export class Player extends Entity {
                 readyAt: 0,
                 sub: {
                     name: "ultimate",
-                    cooldown: 20000,
+                    cooldown: 5000,
                     readyAt: 0
                 },
-                has : true
+                has: true
             }
         ];
         this.selectedSkill = 0;
@@ -227,6 +229,7 @@ export class Player extends Entity {
         this.ultEndTime = 0;
         this.ultCooldown = 0;
         this.lastUltShootTime = 0;
+        this.isSprinting = false;
 
         // 상태 이상 및 물리
         this.isInvincible = false;
@@ -421,6 +424,7 @@ export class Player extends Entity {
             }
         } else {
             const hpRatio = this.hp / this.maxHp;
+            let movementMultiplier = 1;
 
             if (this.hasEffect("slowness")) {
                 this.movementSlowness = 0.5;
@@ -431,7 +435,8 @@ export class Player extends Entity {
             else if (hpRatio < 0.5) {
                 this.movementSlowness = 0.1;
             }
-            else if (this.movementSlowness < 0.01) {
+            
+            if (this.movementSlowness < 0.01) {
                 this.movementSlowness = 0;
             }
 
@@ -442,11 +447,18 @@ export class Player extends Entity {
                 speedMultiplier = 0.7;
             } else if (hpRatio < 0.5) {
                 speedMultiplier = 0.9;
+            } else if (keys['shift'] && this.stamina >= 0.2 && (keys['ArrowLeft'] || keys['a'] || keys['ArrowRight'] || keys['d'])){
+                movementMultiplier = 2;
+                speedMultiplier = 2;
+                this.stamina -= 0.2;
+                this.isSprinting = true;
+            } else {
+                this.isSprinting = false;
             }
 
             const currentMaxVx = this.maxvx * speedMultiplier;
-            if (keys['ArrowLeft'] || keys['a']) this.vx -= this.speed * (1 - this.movementSlowness);
-            if (keys['ArrowRight'] || keys['d']) this.vx += this.speed * (1 - this.movementSlowness);
+            if (keys['ArrowLeft'] || keys['a']) this.vx -= this.speed * (1 - this.movementSlowness) * movementMultiplier;
+            if (keys['ArrowRight'] || keys['d']) this.vx += this.speed * (1 - this.movementSlowness) * movementMultiplier;
             if (Math.abs(this.vx) > currentMaxVx && !this.isDashing) {
                 this.vx = currentMaxVx * Math.sign(this.vx);
             }
@@ -478,6 +490,8 @@ export class Player extends Entity {
         let camera = { x: mouse.x - screenMouse.x, y: mouse.y - screenMouse.y }
         if (this.isUltActive && shootCb) {
             if (now < this.ultEndTime) {
+                this.ignoreGravity = true;
+                this.ignoreFriction = true;
                 if (now > this.lastUltShootTime + 50) {
                     const screenPlayerX = this.x - camera.x;
                     const screenPlayerY = this.y - camera.y;
@@ -486,20 +500,34 @@ export class Player extends Entity {
                         screenMouse.y,
                         screenPlayerX,
                         screenPlayerY
-                    ) + Math.random()*0.2 - 0.1;
+                    ) + Math.random() * 0.2 - 0.1;
                     const speed = 15;
                     const proj = new Projectile(this.x + this.width / 2, this.y + this.height / 2, Math.cos(angle) * speed, Math.sin(angle) * speed, 'player_magic');
                     proj.isReflected = true;
 
-                    playSound('shoot',true);
-                    
+                    this.vx += -Math.cos(angle) * speed * 0.04;
+                    this.vy += -Math.sin(angle) * speed * 0.04;
+
+                    playSound('shoot', true);
+
                     shootCb(proj);
                     this.lastUltShootTime = now;
                 }
             } else {
                 this.isUltActive = false;
+                this.ignoreGravity = false;
+                this.ignoreFriction = false;
             }
+        } else if(!this.isDashing) {
+            this.ignoreGravity = false;
+            this.ignoreFriction = false;
         }
+
+        if (!this.isDashing && !this.isSprinting) {
+            this.stamina = Math.min(this.maxStamina, this.stamina + 0.1);
+        }
+        this.stamina = Math.max(0, Math.min(this.maxStamina, this.stamina));
+
         this.movementSlowness *= 0.9;
         //자연 회복
         if (this.healCoolEndTime > now || this.hasEffect('bleed')) return;
@@ -645,7 +673,7 @@ export class Projectile {
 
         // 🔥 투사체별 데미지 확장성 부여
         if (type === 'boss_magic' || type === 'reflected') this.damage = 25;
-        else if (type === 'player_magic') this.damage = 50;
+        else if (type === 'player_magic') this.damage = 20;
         else this.damage = 10;
     }
 
