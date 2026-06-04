@@ -5,6 +5,7 @@ export const TILE_AIR = 0;
 export const TILE_GROUND = 1;
 export const TILE_SPAWNER = 2;       // 일반 몹 (M)
 export const TILE_BOSS_SPAWNER = 3;  // 보스 (B) 🔥 추가
+export const TILE_SPAWNPOINT = 4;
 
 function stringToMap(str) {
     return str.trim().split('\n').map(row =>
@@ -12,6 +13,7 @@ function stringToMap(str) {
             if (char === '#') return TILE_GROUND;
             if (char === 'M') return TILE_SPAWNER;
             if (char === 'B') return TILE_BOSS_SPAWNER; // 🔥 B 인식
+            if (char === 'S') return TILE_SPAWNPOINT;
             return TILE_AIR;
         })
     );
@@ -32,17 +34,17 @@ const townString = `
 `;
 // 보스 전용 구역 문자열 수정
 const bossString = `
-#..............#
-#..............#
-#..............#
-#..............#
-#..............#
-#..............#
-##.............#
-#...####.......#
-#.........#....#
-#.......B....###
-################
+.#############.#
+.#.............#
+.#..............#
+.#.............#
+.#..............#
+.#.............#
+.##.............#
+.#...####......#
+..........#...#
+........B...###
+S###############
 ################
 `;
 
@@ -92,8 +94,8 @@ const mapChunks = [
     ................
     ................
     ................
-    ....MMMMMMMM....
-    ................
+    ....MMMMMMMM#...
+    .......##.......
     ################
     ################
     `
@@ -212,6 +214,24 @@ export function extractSpawners() {
         }
     }
     return spawns;
+}
+
+export function extractRespawnPoints() {
+    let points = [];
+    for (let row = 0; row < currentMap.length; row++) {
+        for (let col = 0; col < currentMap[row].length; col++) {
+            if (currentMap[row][col] === TILE_SPAWNPOINT) {
+                points.push({
+                    x: col * TILE_SIZE,
+                    y: row * TILE_SIZE,
+                    width: TILE_SIZE,
+                    height: TILE_SIZE
+                });
+                currentMap[row][col] = TILE_AIR;
+            }
+        }
+    }
+    return points;
 }
 export function drawMap(
     ctx,

@@ -1,7 +1,7 @@
 // main.js
 import { Player, Projectile, Particle, FloatingText } from './class.js';
 import { applyPhysics } from './physics.js';
-import { drawMap, generateRPGMap, extractSpawners } from './map.js';
+import { drawMap, generateRPGMap, extractSpawners, extractRespawnPoints } from './map.js';
 import { initLoad, asset } from './load.js';
 initLoad();
 
@@ -34,6 +34,9 @@ let enemies = [];
 let projectiles = []; // 🔥 원거리 공격 탄환 배열
 let particles = []; //파티클!
 let spawnPoints = [];
+let respawnPoints = [];
+let playerSpawnX = 100;
+let playerSpawnY = 100;
 let floatingTexts = [
     new FloatingText(250, 700, "W,A,D로 이동(오른쪽으로 가세요)", {}),
     new FloatingText(500, 700, "클릭으로 공격", {}),
@@ -342,8 +345,11 @@ function startGame(isRevive = false) {
         player = new Player(100, 100);
         generateRPGMap(15);
         spawnPoints = extractSpawners();
+        respawnPoints = extractRespawnPoints();
+        playerSpawnX = 100;
+        playerSpawnY = 100;
     } else {
-        player.x = 100; player.y = 100;
+        player.x = playerSpawnX; player.y = playerSpawnY;
         player.vx = 0; player.vy = 0;
         player.hp = player.maxHp;
         player.isInvincible = false;
@@ -398,6 +404,17 @@ function gameLoop() {
         }
 
         player.update(keys, mouse, screenMouse, (p) => projectiles.push(p));
+
+        // 🔥 플레이어 리스폰 포인트 체크
+        for (const rp of respawnPoints) {
+            if (player.x < rp.x + rp.width &&
+                player.x + player.width > rp.x &&
+                player.y < rp.y + rp.height &&
+                player.y + player.height > rp.y) {
+                playerSpawnX = rp.x;
+                playerSpawnY = rp.y - player.height;
+            }
+        }
 
         // =========================
         // 2.5 런닝 파티클
@@ -918,6 +935,15 @@ function gameLoop() {
         camera,
         canvas
     );
+
+    // 🔥 리스폰 포인트 그리기
+    for (const rp of respawnPoints) {
+        ctx.fillStyle = 'rgba(255, 215, 0, 0.7)';
+        ctx.fillRect(rp.x, rp.y, rp.width, rp.height);
+        ctx.strokeStyle = '#FFD700';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(rp.x, rp.y, rp.width, rp.height);
+    }
 
     const allEntities = [...enemies, ...particles, ...projectiles, ...floatingTexts, player];
     allEntities.forEach(e => {
