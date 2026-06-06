@@ -49,7 +49,7 @@ export class Slime extends Enemy {
     onHit() {
         return {
             effect: "slowness",
-            duration: 2000
+            duration: 1500
         };
     }
 }

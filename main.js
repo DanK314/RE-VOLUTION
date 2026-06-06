@@ -1,7 +1,7 @@
 // main.js
 import { Player, Projectile, Particle, FloatingText } from './class.js';
 import { applyPhysics } from './physics.js';
-import { drawMap, generateRPGMap, extractSpawners, extractRespawnPoints } from './map.js';
+import { drawMap, generateRPGMap, extractSpawners, extractRespawnPoints, getBiomeColorAtX } from './map.js';
 import { initLoad, asset } from './load.js';
 initLoad();
 
@@ -12,6 +12,7 @@ import { Slime } from './enemy/Slime.js';
 import { Rock } from './enemy/Rock.js';
 
 import { playSound } from './sound.js';
+import { Eagle } from './enemy/eagle.js';
 
 // UI 요소
 const mainScreen = document.getElementById('main-screen');
@@ -343,7 +344,7 @@ function startGame(isRevive = false) {
 
     if (!isRevive) {
         player = new Player(100, 100);
-        generateRPGMap(15);
+        generateRPGMap();
         spawnPoints = extractSpawners();
         respawnPoints = extractRespawnPoints();
         playerSpawnX = 100;
@@ -466,7 +467,7 @@ function gameLoop() {
                 else {
                     // 일반 몬스터는 랜덤으로 슬라임/바위 생성
                     if (Math.random() < 0.7) { // 슬라임이 나올 확률 70%
-                        enemy = new Slime(spawner.x, spawner.y);
+                        enemy = new Eagle(spawner.x, spawner.y);
                     } else { // 바위는 밸런스 조정을 위해 30%로 줄임
                         enemy = new Rock(spawner.x, spawner.y);
                     }
@@ -815,11 +816,17 @@ function gameLoop() {
     // 10. 렌더
     // =========================
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-    const grad = ctx.createLinearGradient(0, 0, 0, canvas.height);
-    //dark background
-    grad.addColorStop(0, "#1B2735");
-    grad.addColorStop(1, "#3A506B");
 
+    const cameraCenterX = camera.x + canvas.width / 2;
+    const bgTop = getBiomeColorAtX(cameraCenterX, 'bgTop');
+    const bgBottom = getBiomeColorAtX(cameraCenterX, 'bgBottom');
+    const farColor = getBiomeColorAtX(cameraCenterX, 'far');
+    const midColor = getBiomeColorAtX(cameraCenterX, 'mid');
+    const nearColor = getBiomeColorAtX(cameraCenterX, 'near');
+
+    const grad = ctx.createLinearGradient(0, 0, 0, canvas.height);
+    grad.addColorStop(0, bgTop);
+    grad.addColorStop(1, bgBottom);
 
     ctx.fillStyle = grad;
     ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -827,7 +834,7 @@ function gameLoop() {
     // ===== 배경 레이어 1 (가장 멀리) =====
 
     ctx.globalAlpha = 0.25;
-    ctx.fillStyle = "#6C7A89";
+    ctx.fillStyle = farColor;
 
     ctx.beginPath();
 
@@ -854,7 +861,7 @@ function gameLoop() {
     // ===== 배경 레이어 2 (조금 가까움) =====
 
     ctx.globalAlpha = 0.5;
-    ctx.fillStyle = "#4E6378";
+    ctx.fillStyle = midColor;
 
     ctx.beginPath();
 
@@ -900,7 +907,7 @@ function gameLoop() {
 
     // ===== 배경 레이어 3 (가장 가까움) =====
     ctx.globalAlpha = 0.8;
-    ctx.fillStyle = "#263238";
+    ctx.fillStyle = nearColor;
 
     ctx.beginPath();
 

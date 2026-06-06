@@ -32,19 +32,18 @@ const townString = `
 ################
 ################
 `;
-// 보스 전용 구역 문자열 수정
 const bossString = `
-.#############.#
-.#.............#
-.#..............#
-.#.............#
-.#..............#
-.#.............#
-.##.............#
-.#...####......#
-..........#...#
-........B...###
-S###############
+##############.#
+#..............#
+#..............#
+#..............#
+#..............#
+#..............#
+##.............#
+#...####.......#
+..........#....#
+S.......B...####
+################
 ################
 `;
 
@@ -102,10 +101,94 @@ const mapChunks = [
 ].map(stringToMap);
 export let currentMap = townChunk;
 
-export function generateRPGMap(randomChunkCount = 10) {
+// 🎨 Biome System
+export const BIOME_TOWN = 'town';
+export const BIOME_FOREST = 'forest';
+export const BIOME_DESERT = 'desert';
+export const BIOME_BOSS = 'boss';
+
+export const BIOME_COLORS = {
+    town: {
+        ground: '#8B4513',
+        stroke: '#5c2e0e',
+        bgTop: '#1B2735',
+        bgBottom: '#3A506B',
+        far: '#6C7A89',
+        mid: '#4E6378',
+        near: '#263238'
+    },
+    forest: {
+        ground: '#603e00',
+        stroke: '#1a3009',
+        bgTop: '#0d1f0d',
+        bgBottom: '#1a4d1a',
+        far: '#3d7d3d',
+        mid: '#2d6d2d',
+        near: '#1a4d1a'
+    },
+    desert: {
+        ground: '#daa520',
+        stroke: '#b8860b',
+        bgTop: '#f5deb3',
+        bgBottom: '#f0e68c',
+        far: '#deb887',
+        mid: '#d4a574',
+        near: '#cd853f'
+    },
+    boss: {
+        ground: '#8b0000',
+        stroke: '#4d0000',
+        bgTop: '#2b0000',
+        bgBottom: '#660000',
+        far: '#8b0000',
+        mid: '#660000',
+        near: '#4d0000'
+    }
+};
+
+let biomeRegions = [
+    { startX: 0, endX: 16, biome: BIOME_TOWN },
+    { startX: 16, endX: 256, biome: BIOME_FOREST },
+    { startX: 256, endX: 272, biome: BIOME_BOSS },
+    { startX: 272, endX: 512, biome: BIOME_DESERT },
+    { startX: 512, endX: 528, biome: BIOME_BOSS }
+]; // Array of {startX, endX, biome}
+const biomeSections = [
+    { biome: BIOME_FOREST, chunks: 15 },
+    { biome: BIOME_DESERT, chunks: 15 }
+];
+function clamp(value, min, max) {
+    return Math.min(Math.max(value, min), max);
+}
+
+export function getBiomeColorAtX(x, key) {
+
+    const col = x / TILE_SIZE;
+
+    const region = biomeRegions.find(
+        region =>
+            col >= region.startX &&
+            col < region.endX
+    );
+
+    if (!region) {
+        return BIOME_COLORS[BIOME_TOWN][key];
+    }
+
+    return BIOME_COLORS[region.biome][key];
+}
+
+export function getBiomeAtX(x) {
+    const blendInfo = getBiomeBlendInfo(x);
+    return blendInfo.biomeB ? blendInfo.biomeA : blendInfo.biomeA;
+}
+
+export function generateRPGMap() {
 
     let newMap = [];
     const mapHeight = 12;
+    biomeRegions = [];
+    let currentX = 0;
 
     for (let r = 0; r < mapHeight; r++) {
         newMap[r] = [];
@@ -114,85 +197,67 @@ export function generateRPGMap(randomChunkCount = 10) {
     // =========================
     // 시작 마을
     // =========================
+    biomeRegions.push({ startX: currentX, endX: currentX + townChunk[0].length, biome: BIOME_TOWN });
 
     for (let r = 0; r < mapHeight; r++) {
         newMap[r] = newMap[r].concat(townChunk[r]);
     }
+    currentX += townChunk[0].length;
 
     // =========================
     // 랜덤 구간
     // =========================
 
-    for (let i = 0; i < randomChunkCount; i++) {
+    for (const section of biomeSections) {
 
-        const randomChunk =
-            mapChunks[
-            Math.floor(Math.random() * mapChunks.length)
-            ];
+        const sectionStart = currentX;
 
-        for (let r = 0; r < mapHeight; r++) {
-            newMap[r] = newMap[r].concat(randomChunk[r]);
-        }
-    }
+        // 청크 생성
+        for (let i = 0; i < section.chunks; i++) {
 
-    // =========================
-    // 보스 구간
-    // =========================
+            const randomChunk =
+                mapChunks[
+                Math.floor(Math.random() * mapChunks.length)
+                ];
 
-    for (let r = 0; r < mapHeight; r++) {
-        newMap[r] = newMap[r].concat(bossChunk[r]);
-    }
-
-    // =========================
-    // 보스 뒤 낭떠러지
-    // =========================
-
-    const gapWidth = 15;
-
-    // 보스맵 마지막 벽 높이 기준
-    // 보통 바닥이 10~11줄이면:
-    const gapStartRow = 5;
-
-    for (let r = 0; r < mapHeight; r++) {
-
-        for (let i = 0; i < gapWidth; i++) {
-
-            // 위는 공기
-            if (r >= gapStartRow) {
-                newMap[r].push(0);
+            for (let r = 0; r < mapHeight; r++) {
+                newMap[r] = newMap[r].concat(randomChunk[r]);
             }
 
-            // 아래도 전부 공기
-            else {
-                newMap[r].push(0);
-            }
+            currentX += randomChunk[0].length;
         }
-    }
 
-    // =========================
-    // 다음 랜덤 지역
-    // =========================
+        // biome region은 섹션 단위로 딱 1개만
+        biomeRegions.push({
+            startX: sectionStart,
+            endX: currentX,
+            biome: section.biome
+        });
 
-    for (let i = 0; i < randomChunkCount; i++) {
-
-        const randomChunk =
-            mapChunks[
-            Math.floor(Math.random() * mapChunks.length)
-            ];
+        // 보스맵
+        const bossStart = currentX;
 
         for (let r = 0; r < mapHeight; r++) {
-            newMap[r] = newMap[r].concat(randomChunk[r]);
+            newMap[r] = newMap[r].concat(bossChunk[r]);
         }
-    }
-    // =========================
-    // 보스 구간
-    // =========================
 
-    for (let r = 0; r < mapHeight; r++) {
-        newMap[r] = newMap[r].concat(bossChunk[r]);
+        currentX += bossChunk[0].length;
+
+        biomeRegions.push({
+            startX: bossStart,
+            endX: currentX,
+            biome: BIOME_BOSS
+        });
     }
 
     currentMap = newMap;
+    console.table(
+        biomeRegions.map(r => ({
+            start: r.startX,
+            end: r.endX,
+            biome: r.biome
+        }))
+    );
 }
 
 export function extractSpawners() {
@@ -268,7 +333,19 @@ export function drawMap(
                 const x = col * TILE_SIZE;
                 const y = row * TILE_SIZE;
 
-                ctx.fillStyle = '#8B4513';
+                const fillColor =
+                    getBiomeColorAtX(
+                        x + TILE_SIZE / 2,
+                        'ground'
+                    );
+
+                const strokeColor =
+                    getBiomeColorAtX(
+                        x + TILE_SIZE / 2,
+                        'stroke'
+                    );
+
+                ctx.fillStyle = fillColor;
 
                 ctx.fillRect(
                     x,
@@ -277,7 +354,7 @@ export function drawMap(
                     TILE_SIZE
                 );
 
-                ctx.strokeStyle = '#5c2e0e';
+                ctx.strokeStyle = strokeColor;
 
                 /*
                 ctx.strokeRect(
