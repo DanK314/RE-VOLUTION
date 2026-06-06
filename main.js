@@ -1,7 +1,7 @@
 // main.js
 import { Player, Projectile, Particle, FloatingText } from './class.js';
 import { applyPhysics } from './physics.js';
-import { drawMap, generateRPGMap, extractSpawners, extractRespawnPoints, getBiomeColorAtX } from './map.js';
+import { drawMap, generateRPGMap, extractSpawners, extractRespawnPoints, getBiomeColorAtX, getBiomeAtX } from './map.js';
 import { initLoad, asset } from './load.js';
 initLoad();
 
@@ -11,8 +11,10 @@ import { Boss_Nature } from './boss/boss_nature.js';
 import { Slime } from './enemy/Slime.js';
 import { Rock } from './enemy/Rock.js';
 
-import { playSound } from './sound.js';
+import { playSound, playBGM, stopBGM } from './sound.js';
 import { Eagle } from './enemy/eagle.js';
+
+import { BIOME_BOSS, BIOME_COLORS, BIOME_DESERT, BIOME_FOREST, BIOME_TOWN } from './map.js';
 
 // UI 요소
 const mainScreen = document.getElementById('main-screen');
@@ -166,6 +168,16 @@ function updateSkillUI(player) {
         skillBar.subLabel.innerText = "";
         skillBar.subFill.style.height = "0%";
     }
+}
+
+function isPlayerInBossRoom(player) {
+    if (!player) return false;
+    const playerCenterX = player.x + (player.width || 0) / 2;
+    return getBiomeAtX(playerCenterX) === BIOME_BOSS;
+}
+
+function getBiomeMusic(x) {
+    return `${getBiomeAtX(x)}_bgm`;
 }
 
 const keys = {};
@@ -333,7 +345,7 @@ function updateUI() {
 }
 
 
-let bossIndex = 0;
+let defeatedBossSpawners = new Set(); // Track which boss spawners have been defeated
 
 
 // --- 게임 시작 및 초기화 ---
@@ -349,6 +361,7 @@ function startGame(isRevive = false) {
         respawnPoints = extractRespawnPoints();
         playerSpawnX = 100;
         playerSpawnY = 100;
+        defeatedBossSpawners.clear();
     } else {
         player.x = playerSpawnX; player.y = playerSpawnY;
         player.vx = 0; player.vy = 0;
@@ -360,8 +373,15 @@ function startGame(isRevive = false) {
         player.isParrying = false;
         player.effects = {};
 
-        spawnPoints.forEach(sp => {
-            sp.spawned = false;
+        spawnPoints.forEach((sp, index) => {
+            if (sp.type === "boss") {
+                // Only reset spawn for bosses that haven't been defeated
+                if (!defeatedBossSpawners.has(index)) {
+                    sp.spawned = false;
+                }
+            } else {
+                sp.spawned = false;
+            }
         });
     }
 
@@ -373,7 +393,6 @@ function startGame(isRevive = false) {
 
     // 몬스터 소환
     enemies = [];
-    bossIndex = 0;
 
     updateUI();
     camera.x = 0; camera.y = 0; camera.shakeAmount = 0;
@@ -452,30 +471,49 @@ function gameLoop() {
                 let enemy;
 
                 if (spawner.type === "boss") {
+                    // Check if this boss spawner has already been defeated
+                    const spawnerIndex = spawnPoints.indexOf(spawner);
+                    if (!defeatedBossSpawners.has(spawnerIndex)) {
+                        // Determine boss type based on which boss spawner this is (0 = Wind, 1 = Nature, etc.)
+                        const bosses = spawnPoints.filter(sp => sp.type === "boss");
+                        const bossTypeIndex = bosses.indexOf(spawner);
 
-                    if (bossIndex === 0) {
-                        enemy = new Boss_Wind(spawner.x, spawner.y);
+                        if (bossTypeIndex === 0) {
+                            enemy = new Boss_Wind(spawner.x, spawner.y);
+                        } else if (bossTypeIndex === 1) {
+                            enemy = new Boss_Nature(spawner.x, spawner.y);
+                        }
+
+                        if (enemy) {
+                            enemy.spawnerIndex = spawnerIndex;
+                        }
                     }
-
-                    else if (bossIndex === 1) {
-                        enemy = new Boss_Nature(spawner.x, spawner.y);
-                    }
-
-                    bossIndex++;
                 }
 
                 else {
-                    // 일반 몬스터는 랜덤으로 슬라임/바위 생성
-                    if (Math.random() < 0.7) { // 슬라임이 나올 확률 70%
-                        enemy = new Eagle(spawner.x, spawner.y);
-                    } else { // 바위는 밸런스 조정을 위해 30%로 줄임
-                        enemy = new Rock(spawner.x, spawner.y);
+                    if (getBiomeAtX(spawner.x) === BIOME_FOREST) {
+                        // 숲 몬스터는 랜덤으로 슬라임/바위 생성
+                        if (Math.random() < 0.7) { // 슬라임이 나올 확률 70%
+                            enemy = new Slime(spawner.x, spawner.y);
+                        } else { // 바위는 밸런스 조정을 위해 30%로 줄임
+                            enemy = new Rock(spawner.x, spawner.y);
+                        }
+                    } else if (getBiomeAtX(spawner.x) === BIOME_DESERT) {
+                        // 시막 몬스터는 랜덤으로 바위/독수리 생성
+                        if (Math.random() < 0.8) {
+                            enemy = new Rock(spawner.x, spawner.y);
+                        } else {
+                            enemy = new Eagle(spawner.x, spawner.y);
+                        }
                     }
                 }
 
-                enemies.push(enemy);
+                if (enemy) {
+                    enemies.push(enemy);
+                    spawner.spawned = true;
+                }
 
-                spawner.spawned = true;
+
             }
         }
 
@@ -488,6 +526,12 @@ function gameLoop() {
             // ❗ 1) 죽음 시작 트리거
             if (enemy.hp <= 0 && !enemy.dying) {
                 player.gainExp(enemy.expReward || 10);
+                if (enemy instanceof Boss_Wind || enemy instanceof Boss_Nature) {
+                    // Mark this boss as defeated using the linked spawner index
+                    if (typeof enemy.spawnerIndex === 'number' && spawnPoints[enemy.spawnerIndex]?.type === 'boss') {
+                        defeatedBossSpawners.add(enemy.spawnerIndex);
+                    }
+                }
                 if (enemy instanceof Boss_Wind) {
                     player.skills[1].has = true; // 돌진 스킬 해금
                 }
@@ -627,6 +671,7 @@ function gameLoop() {
                     proj.damage *= player.getDamageMultiplier();
 
                     if (camera) camera.shakeAmount = 10;
+                    playSound('parry_projectile', true)
                     return true;
                 }
             }
@@ -769,9 +814,9 @@ function gameLoop() {
                         hitY + hitHeight > enemy.y
                     ) {
                         enemy.takeDamage(player.getAttackPower());
-
-                        enemy.vx = cosA * 5;
-                        enemy.vy = sinA * 5 - 5;
+                        const knockback = 4;
+                        enemy.vx = cosA * knockback;
+                        enemy.vy = sinA * knockback - knockback;
 
                         player.attackHitList.push(enemy);
 
@@ -1003,12 +1048,35 @@ function gameLoop() {
     // =========================
     updateUI();
 
+    // =========================
+    // 12.사운드
+    // =========================
+
+    const activeBosses = enemies.filter(
+        e => e.isBoss && !e.dying && !e.isDead
+    );
+    if (
+        isPlayerInBossRoom(player) &&
+        activeBosses.length > 0
+    ) {
+        const nearestBoss = activeBosses.reduce((a, b) => {
+            const da = Math.abs(a.x - player.x);
+            const db = Math.abs(b.x - player.x);
+            return da < db ? a : b;
+        });
+
+        playBGM(nearestBoss.musicSrc, 1000);
+    } else {
+        playBGM(getBiomeMusic(player.x), 1000);
+    }
+
     if (!isGameOver) {
         gameAnimationFrame = requestAnimationFrame(gameLoop);
     }
 }
 function handleGameOver() {
     isGameOver = true;
+    stopBGM(1000)
     gameScreen.classList.add('hidden');
     gameOverScreen.classList.remove('hidden');
 }

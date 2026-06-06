@@ -148,7 +148,7 @@ export class Player extends Entity {
     constructor(x, y) {
         super(x, y, 40, 40, 7);
         this.maxHp = 100; this.hp = this.maxHp;
-        this.level = 1; this.exp = 0; this.maxExp = 100;
+        this.level = 1; this.exp = 0; this.maxExp = 200;
         this.color = '#3498db';
         this.facingDirection = 1;
 
@@ -206,10 +206,10 @@ export class Player extends Entity {
                 readyAt: 0,
                 sub: {
                     name: "ultimate",
-                    cooldown: 5000,
+                    cooldown: 7000,
                     readyAt: 0
                 },
-                has: true
+                has: false
             }
         ];
         this.selectedSkill = 0;
@@ -274,6 +274,7 @@ export class Player extends Entity {
         const centerX = this.x + this.width / 2;
         const centerY = this.y + this.height / 2;
         this.attackAngle = Math.atan2(mouseY - centerY, mouseX - centerX);
+        playSound("sweep", true)
     }
 
     // 우클릭: 선택된 스킬 발동 (패링 or 돌진)
@@ -290,6 +291,8 @@ export class Player extends Entity {
             const centerX = this.x + this.width / 2;
             const centerY = this.y + this.height / 2;
             this.parryAngle = Math.atan2(mouseY - centerY, mouseX - centerX);
+
+            playSound('parry');
         } else if (this.selectedSkill === 1) {
             // [2번] 돌진
             if (now < this.skills[1].readyAt) return;
@@ -326,7 +329,7 @@ export class Player extends Entity {
         while (this.exp >= this.maxExp) {
             this.exp -= this.maxExp;
             this.level++;
-            this.maxExp = Math.floor(this.maxExp * 1.5);
+            this.maxExp = Math.floor(this.maxExp * 1.2);
             this.recalculateStats();
             this.levelUpEffectEndTime = Date.now() + 1000;
             this.unspentStatPoints++;
@@ -442,7 +445,7 @@ export class Player extends Entity {
 
             let speedMultiplier = 1;
             if (this.hasEffect("slowness")) {
-                speedMultiplier = 0.3;
+                speedMultiplier = 0.5;
             } else if (hpRatio < 0.25) {
                 speedMultiplier = 0.7;
             } else if (hpRatio < 0.5) {

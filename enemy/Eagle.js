@@ -5,14 +5,14 @@ import { asset } from "../load.js";
 export class Eagle extends Enemy {
     constructor(x, y) {
         super(x, y);
-        this.hp = 40;
-        this.maxHp = 40;
+        this.hp = 30;
+        this.maxHp = 30;
         this.speed = 3;
 
         this.damage = 30;
-        this.expReward = 15;
+        this.expReward = 50;
 
-        this.color = "rgba(0, 0, 0, 0)";
+        this.color = "rgba(0, 0, 0, 1)";
         this.ai = new EagleAI();
     }
     draw(ctx) {

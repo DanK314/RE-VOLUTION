@@ -4,6 +4,10 @@ import { playSound } from "../sound.js";
 export class Boss_Wind extends Enemy {
     constructor(x, y) {
         super(x, y);
+
+        this.isBoss = true;
+        this.musicSrc = 'wind_boss_theme';
+
         this.width = 80;   // 보스는 덩치가 큼
         this.height = 80;
         this.hp = 750;     // 압도적인 체력

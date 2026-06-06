@@ -114,7 +114,32 @@ const assetManifest = {
             name : 'wind_boss_death',
             path : './asset/sounds/wind_boss_death.wav',
             volume : 0.7
-        }
+        },
+        {
+            name : 'sweep',
+            path : './asset/sounds/sweep.wav',
+            volume : 0.4
+        },
+        {
+            name : 'parry_projectile',
+            path : './asset/sounds/parry_projectile.wav',
+            volume : 0.2
+        },
+        {
+            name : 'parry',
+            path : './asset/sounds/parry.wav',
+            volume : 0.2
+        },
+        {
+            name : 'wind_boss_theme',
+            path : './asset/sounds/wind_boss_theme.wav',
+            volume : 0.1
+        },
+        {
+            name : 'nature_boss_theme',
+            path : './asset/sounds/nature_boss_theme.wav',
+            volume : 0.1
+        },
     ]
 };
 

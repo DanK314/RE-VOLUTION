@@ -5,8 +5,8 @@ import { asset } from "../load.js";
 export class Slime extends Enemy {
     constructor(x, y) {
         super(x, y);
-        this.hp = 50;
-        this.maxHp = 50;
+        this.hp = 40;
+        this.maxHp = 40;
         this.speed = 3;
 
         this.damage = 8;

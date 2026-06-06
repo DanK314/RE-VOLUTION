@@ -33,16 +33,16 @@ const townString = `
 ################
 `;
 const bossString = `
-##############.#
-#..............#
-#..............#
-#..............#
-#..............#
-#..............#
-##.............#
-#...####.......#
-..........#....#
-S.......B...####
+.#############.#
+.#.............#
+.#.............#
+.#.............#
+.#.............#
+.#.............#
+.##............#
+.#...###.......#
+.#........#....#
+.S......B...####
 ################
 ################
 `;
@@ -50,11 +50,18 @@ S.......B...####
 const townChunk = stringToMap(townString);
 const bossChunk = stringToMap(bossString);
 
+// 🎨 Biome System
+export const BIOME_TOWN = 'town';
+export const BIOME_FOREST = 'forest';
+export const BIOME_DESERT = 'desert';
+export const BIOME_BOSS = 'boss';
+
 // 중간 필드용 랜덤 청크들 (M을 곳곳에 배치)
 // 🔥 모든 청크가 정확히 12줄이어야 마을/보스맵과 자연스럽게 연결됩니다!
-const mapChunks = [
-    // 1. 점프 발판 지형
-    `
+const mapChunks = {
+    forest: [
+        // 1. 점프 발판 지형
+        `
     ................
     ................
     ................
@@ -68,8 +75,8 @@ const mapChunks = [
     ################
     ################
     `,
-    // 2. 만드셨던 거대한 산 지형 (위쪽에 빈 공간 4줄을 추가해 12줄로 맞춤)
-    `
+        // 2. 만드셨던 거대한 산 지형 (위쪽에 빈 공간 4줄을 추가해 12줄로 맞춤)
+        `
     ................
     ................
     ................
@@ -83,8 +90,8 @@ const mapChunks = [
     ################
     ################
     `,
-    // 3. 평지와 몬스터 군단 지형
-    `
+        // 3. 평지와 몬스터 군단 지형
+        `
     ................
     ................
     ................
@@ -98,14 +105,53 @@ const mapChunks = [
     ################
     ################
     `
-].map(stringToMap);
+    ].map(stringToMap),
+    desert: [
+        `
+        ................
+        ................
+        .........###....
+        ..####..........
+        ................
+        ................
+        ................
+        ................
+        ...#......##....
+        ..##.......###..
+        .###.MMMMMM.####
+        ################
+        `,
+        `
+        ................
+        ................
+        ................
+        ................
+        ................
+        ................
+        ................
+        ................
+        ...M........M...
+        ..###..M...###..
+        .#######...#####
+        ################
+        `,
+        `
+        ................
+        ................
+        ................
+        ................
+        .....###.##.....
+        ....##...###....
+        ...##....####...
+        ..###....####...
+        ..##.....####...
+        ..##.....#####..
+        .###.MMMMMM.####
+        ################
+        `,
+    ].map(stringToMap)
+}
 export let currentMap = townChunk;
-
-// 🎨 Biome System
-export const BIOME_TOWN = 'town';
-export const BIOME_FOREST = 'forest';
-export const BIOME_DESERT = 'desert';
-export const BIOME_BOSS = 'boss';
 
 export const BIOME_COLORS = {
     town: {
@@ -138,8 +184,8 @@ export const BIOME_COLORS = {
     boss: {
         ground: '#8b0000',
         stroke: '#4d0000',
-        bgTop: '#2b0000',
-        bgBottom: '#660000',
+        bgTop: '#000000',
+        bgBottom: '#330000',
         far: '#8b0000',
         mid: '#660000',
         near: '#4d0000'
@@ -179,8 +225,17 @@ export function getBiomeColorAtX(x, key) {
 }
 
 export function getBiomeAtX(x) {
-    const blendInfo = getBiomeBlendInfo(x);
-    return blendInfo.biomeB ? blendInfo.biomeA : blendInfo.biomeA;
+    const tile = Math.floor(x / TILE_SIZE);
+
+    for (let i = 0; i < biomeRegions.length; i++) {
+        const b = biomeRegions[i];
+
+        if (tile >= b.startX && tile < b.endX) {
+            return b.biome;
+        }
+    }
+
+    return BIOME_TOWN;
 }
 
 export function generateRPGMap() {
@@ -216,8 +271,8 @@ export function generateRPGMap() {
         for (let i = 0; i < section.chunks; i++) {
 
             const randomChunk =
-                mapChunks[
-                Math.floor(Math.random() * mapChunks.length)
+                mapChunks[section.biome][
+                Math.floor(Math.random() * mapChunks[section.biome].length)
                 ];
 
             for (let r = 0; r < mapHeight; r++) {

@@ -5,7 +5,7 @@ export class EagleAI {
         this.baseHeight = 120;
         this.groundLimit = this.baseHeight + 180;
 
-        this.detectRange = 650;
+        this.detectRange = 800;
 
         // 공격 타겟
         this.diveTargetX = 0;
@@ -87,7 +87,7 @@ export class EagleAI {
             const len = Math.sqrt(adx * adx + ady * ady);
 
             this.diveSpeed += 0.7;
-            const speed = Math.min(this.diveSpeed, 24);
+            const speed = Math.min(this.diveSpeed, 16);
 
             enemy.vx = (adx / len) * speed;
             enemy.vy = (ady / len) * speed;

@@ -1,25 +1,28 @@
-import { Slime } from "../enemy/Slime.js";
+import { Nature_Minion } from "../enemy/Nature_Minion.js";
 import { Enemy } from "../class.js";
 
 export class Boss_Nature extends Enemy {
     constructor(x, y) {
         super(x, y, "nature");
 
+        this.isBoss = true;
+        this.musicSrc = 'nature_boss_theme';
+
         this.width = 120;
         this.height = 120;
         this.speed = 0;
-        this.expReward = 3000;
+        this.expReward = 5000;
 
         this.hp = 1000;
         this.maxHp = 1000;
 
         this.color = "darkgreen";
 
-        this.damage = 15;
+        this.damage = 50;
 
         this.minions = [];
 
-        this.summonCooldown = 3500;
+        this.summonCooldown = 5000;
         this.lastSummonTime = 0;
 
         // 회복
@@ -27,7 +30,7 @@ export class Boss_Nature extends Enemy {
         this.lastHealTime = 0;
 
         // 뿌리 공격
-        this.rootCooldown = 1000;
+        this.rootCooldown = 500;
         this.lastRootTime = 0;
 
         this.enraged = false;
@@ -43,7 +46,7 @@ export class Boss_Nature extends Enemy {
 
         // attack tuning
         this.rootRange = 250; // effective range to trigger and hit (reduced)
-        this.rootPushBase = 12; // base push amount (reduced)
+        this.rootPushBase = 20; // base push amount (reduced)
         this.dying = false;
         this.deathStartTime = 0;
         this.deathDuration = 2000; // ms
@@ -112,7 +115,7 @@ export class Boss_Nature extends Enemy {
         const x = this.x + Math.cos(angle) * r;
         const y = this.y + Math.sin(angle) * r;
 
-        return new Slime(x, y);
+        return new Nature_Minion(x, y);
     }
 
     heal(now) {
@@ -138,7 +141,7 @@ export class Boss_Nature extends Enemy {
 
                 // Only apply damage if player is still within effective range
                 if (distExec < this.rootRange) {
-                    player.takeDamage(this.damage * 2);
+                    player.takeDamage(this.damage);
                     player.takeEffect(this.onHit());
 
                     // Push player away from boss
