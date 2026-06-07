@@ -12,7 +12,7 @@ import { Slime } from './enemy/Slime.js';
 import { Rock } from './enemy/Rock.js';
 
 import { playSound, playBGM, stopBGM } from './sound.js';
-import { Eagle } from './enemy/eagle.js';
+import { Eagle } from './enemy/Eagle.js';
 
 import { BIOME_BOSS, BIOME_COLORS, BIOME_DESERT, BIOME_FOREST, BIOME_TOWN } from './map.js';
 
