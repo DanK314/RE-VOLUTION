@@ -2,8 +2,7 @@
 import { Player, Projectile, Particle, FloatingText } from './class.js';
 import { applyPhysics } from './physics.js';
 import { drawMap, generateRPGMap, extractSpawners, extractRespawnPoints, getBiomeColorAtX, getBiomeAtX } from './map.js';
-import { initLoad, asset } from './load.js';
-initLoad();
+import { initLoad, asset, checkAllLoaded } from './load.js';
 
 import { Boss_Wind } from './boss/boss_wind.js';
 import { Boss_Nature } from './boss/boss_nature.js';
@@ -16,10 +15,13 @@ import { Eagle } from './enemy/Eagle.js';
 
 import { BIOME_BOSS, BIOME_COLORS, BIOME_DESERT, BIOME_FOREST, BIOME_TOWN } from './map.js';
 
+const loadPromise = initLoad();
+
 // UI 요소
 const mainScreen = document.getElementById('main-screen');
 const gameScreen = document.getElementById('game-screen');
 const gameOverScreen = document.getElementById('game-over-screen');
+const loadScreen = document.getElementById('loading-screen');
 const startBtn = document.getElementById('start-btn');
 const reviveBtn = document.getElementById('revive-btn');
 const toMainBtn = document.getElementById('to-main-btn');
@@ -1082,6 +1084,13 @@ function handleGameOver() {
 }
 
 // 버튼 초기화
-startBtn.addEventListener('click', () => { mainScreen.classList.add('hidden'); gameScreen.classList.remove('hidden'); startGame(false); });
+startBtn.addEventListener('click', async () => {
+    mainScreen.classList.add('hidden');
+    loadScreen.classList.remove('hidden');
+    await loadPromise;
+    loadScreen.classList.add('hidden');
+    gameScreen.classList.remove('hidden');
+    startGame(false);
+});
 reviveBtn.addEventListener('click', () => { gameOverScreen.classList.add('hidden'); gameScreen.classList.remove('hidden'); startGame(true); });
 toMainBtn.addEventListener('click', () => { gameOverScreen.classList.add('hidden'); mainScreen.classList.remove('hidden'); });

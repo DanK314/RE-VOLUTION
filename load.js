@@ -147,27 +147,47 @@ const assetManifest = {
 export function initLoad() {
     console.log("에셋 로딩 시작...");
 
-    // 1. 이미지 리스트를 순회하며 자동 로드
+    const promises = [];
+
     assetManifest.images.forEach(item => {
-        loadImage(
-            item.char,
-            item.action,
-            item.path,
-            {
-                frameWidth: item.frameWidth,
-                frameHeight: item.frameHeight,
-                frames: item.frames
-            }
+        promises.push(
+            new Promise((resolve, reject) => {
+                ensureAssetPath('image', item.char, item.action);
+
+                const img = new Image();
+
+                img.onload = () => {
+                    asset.image[item.char][item.action] = {
+                        image: img,
+                        frameWidth: item.frameWidth,
+                        frameHeight: item.frameHeight,
+                        frames: item.frames
+                    };
+
+                    resolve();
+                };
+
+                img.onerror = reject;
+                img.src = item.path;
+            })
         );
     });
 
-    // 2. 사운드 리스트를 순회하며 자동 로드
     assetManifest.sounds.forEach(item => {
-        loadSound(item.name,item.path,item.volume);
+        promises.push(
+            new Promise((resolve, reject) => {
+                const audio = new Audio();
+
+                audio.oncanplaythrough = resolve;
+                audio.onerror = reject;
+
+                audio.src = item.path;
+                audio.volume = item.volume;
+
+                asset.sound[item.name] = audio;
+            })
+        );
     });
 
-    if (totalAssets === 0) {
-        checkAllLoaded = true;
-        console.log("로드할 에셋이 없습니다.");
-    }
+    return Promise.all(promises);
 }
