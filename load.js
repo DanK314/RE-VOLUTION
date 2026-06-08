@@ -140,6 +140,16 @@ const assetManifest = {
             path : './asset/sounds/nature_boss_theme.wav',
             volume : 0.1
         },
+        {
+            name : 'heal',
+            path : './asset/sounds/heal.wav',
+            volume : 0.3
+        },
+        {
+            name : 'town_bgm',
+            path : './asset/sounds/town_bgm.wav',
+            volume : 0.1
+        }
     ]
 };
 

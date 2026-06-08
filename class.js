@@ -210,6 +210,19 @@ export class Player extends Entity {
                     readyAt: 0
                 },
                 has: false
+            },
+            {
+                id: 2,
+                name: "heal",
+                hasSub: true,
+                cooldown: 10000,
+                readyAt: 0,
+                sub: {
+                    name: "Super Heal",
+                    cooldown: 15000,
+                    readyAt: 0
+                },
+                has: true
             }
         ];
         this.selectedSkill = 0;
@@ -310,6 +323,15 @@ export class Player extends Entity {
             // 🌟 핵심: 대시 중에는 마찰력과 중력을 무시합니다!
             this.ignoreFriction = true;
             this.ignoreGravity = true;
+        } else if (this.selectedSkill === 2) {
+            // [3번] 회복
+            if (now < this.skills[2].readyAt) return;
+            this.skills[2].readyAt = now + this.skills[2].cooldown * (1 - this.getCooldownReduction());
+            if (typeof updateSkillUI === 'function') updateSkillUI(this);
+
+            this.takeEffect({ effect: "heal", duration: 5000 })
+
+            playSound('heal');
         }
     }
 
@@ -320,6 +342,10 @@ export class Player extends Entity {
             this.isUltActive = true;
             this.ultEndTime = now + 1000;
             this.skills[1].sub.readyAt = now + this.skills[1].sub.cooldown * (1 - this.getCooldownReduction());
+        }
+        if (this.selectedSkill === 2 && now > this.skills[2].sub.readyAt) {
+            this.takeEffect({effect:"superHeal", duration : 3000});
+            this.skills[2].sub.readyAt = now + this.skills[2].sub.cooldown * (1 - this.getCooldownReduction());
         }
     }
 
@@ -347,7 +373,7 @@ export class Player extends Entity {
     // 데미지 처리
     takeDamage(amount) {
         if (this.hp <= 0) return true;
-        if (this.isInvincible || this.isDashing || this.isParrying) return false;
+        if (this.isInvincible || this.isDashing || this.isParrying || this.hasEffect('superHeal')) return false;
         this.hp -= amount;
         this.vy = -6;
         if (this.hp <= 0) return true;
@@ -428,8 +454,10 @@ export class Player extends Entity {
         } else {
             const hpRatio = this.hp / this.maxHp;
             let movementMultiplier = 1;
-
-            if (this.hasEffect("slowness")) {
+            if (this.hasEffect('superHeal')){
+                this.movementSlowness = 1;
+            }
+            else if (this.hasEffect("slowness")) {
                 this.movementSlowness = 0.5;
             }
             else if (hpRatio < 0.25) {
@@ -438,19 +466,21 @@ export class Player extends Entity {
             else if (hpRatio < 0.5) {
                 this.movementSlowness = 0.1;
             }
-            
+
             if (this.movementSlowness < 0.01) {
                 this.movementSlowness = 0;
             }
 
             let speedMultiplier = 1;
-            if (this.hasEffect("slowness")) {
+            if (this.hasEffect('superHeal')) {
+                speedMultiplier = 0;
+            } else if (this.hasEffect("slowness")) {
                 speedMultiplier = 0.5;
             } else if (hpRatio < 0.25) {
                 speedMultiplier = 0.7;
             } else if (hpRatio < 0.5) {
                 speedMultiplier = 0.9;
-            } else if (keys['shift'] && this.stamina >= 0.2 && (keys['ArrowLeft'] || keys['a'] || keys['ArrowRight'] || keys['d'])){
+            } else if (keys['shift'] && this.stamina >= 0.2 && (keys['ArrowLeft'] || keys['a'] || keys['ArrowRight'] || keys['d'])) {
                 movementMultiplier = 2;
                 speedMultiplier = 2;
                 this.stamina -= 0.2;
@@ -521,7 +551,7 @@ export class Player extends Entity {
                 this.ignoreGravity = false;
                 this.ignoreFriction = false;
             }
-        } else if(!this.isDashing) {
+        } else if (!this.isDashing) {
             this.ignoreGravity = false;
             this.ignoreFriction = false;
         }
@@ -533,6 +563,16 @@ export class Player extends Entity {
 
         this.movementSlowness *= 0.9;
         //자연 회복
+        if (this.hasEffect('superHeal') && this.healCoolEndTime <= now) {
+            this.hp = Math.min(this.maxHp, this.hp + 1);
+            this.healCoolEndTime = now + 100;
+            return;
+        }
+        if (this.hasEffect('heal') && this.healCoolEndTime <= now) {
+            this.hp = Math.min(this.maxHp, this.hp + 1);
+            this.healCoolEndTime = now + 300;
+            return;
+        }
         if (this.healCoolEndTime > now || this.hasEffect('bleed')) return;
         this.hp = Math.min(this.maxHp, this.hp + this.getRegenAmount() * (this.hp / this.maxHp));
         this.healCoolEndTime = now + 1000;

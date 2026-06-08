@@ -254,9 +254,13 @@ window.addEventListener('keydown', (e) => {
     if (e.key === '2' && player.skills[1].has) {
         player.selectedSkill = 1;
     }
+    // 3 : Heal Skill(if have)
+    if (e.key === '3' && player.skills[2]?.has) {
+        player.selectedSkill = 2;
+    }
 
     // Q 키: 2번이 선택되어 있을 때만 궁극기 바로 발동
-    if (e.key.toLowerCase() === 'q' && player.selectedSkill === 1) {
+    if (e.key.toLowerCase() === 'q') {
         player.useUltimate();
     }
 });
@@ -310,6 +314,7 @@ function updateUI() {
     // 🔥 추가: 인벤토리 슬롯 업데이트
     const slot1 = document.getElementById('slot-1');
     const slot2 = document.getElementById('slot-2');
+    const slot3 = document.getElementById('slot-3');
 
     if (player.selectedSkill === 0) {
         slot1.classList.add('active');
@@ -326,14 +331,26 @@ function updateUI() {
         slot2.classList.remove('active');
     } else {
         slot2.classList.remove('locked');
-        slot2.querySelector('.icon').innerText = "🌬️"; // 바람 아이콘
-        slot2.querySelector('.skill-name').innerText = "돌진";
 
         // 돌진이 해금된 상태에서만 active 클래스 적용
         if (player.selectedSkill === 1) {
             slot2.classList.add('active');
         } else {
             slot2.classList.remove('active');
+        }
+    }
+    // 🔥 2번 슬롯(돌진) 잠금 및 활성화 로직
+    if (!player.skills[2].has) {
+        slot3.classList.add('locked');
+        slot3.querySelector('.icon').innerText = "🔒"; // 자물쇠 아이콘
+        slot3.querySelector('.skill-name').innerText = "잠김";
+        slot3.classList.remove('active');
+    } else {
+        slot3.classList.remove('locked');
+        if (player.selectedSkill === 2) {
+            slot3.classList.add('active');
+        } else {
+            slot3.classList.remove('active');
         }
     }
 
@@ -770,6 +787,36 @@ function gameLoop() {
                         (Math.random() - 0.5) * 1,
                         Math.random() * -1,
                         "#00aa00"
+                        , 2, 0.8
+                    )
+                );
+            }
+        }
+        if (player.hasEffect('heal')) {
+
+            for (let i = 0; i < 2; i++) {
+                particles.push(
+                    new Particle(
+                        player.x + player.width / 2 + (Math.random() - 0.5) * 20,
+                        player.y + player.height / 2 + (Math.random() - 0.5) * 30,
+                        (Math.random() - 0.5) * 1,
+                        Math.random() * -5,
+                        "#7aff7a"
+                        , 2, 0.8
+                    )
+                );
+            }
+        }
+        if (player.hasEffect('superHeal')) {
+
+            for (let i = 0; i < 10; i++) {
+                particles.push(
+                    new Particle(
+                        player.x + player.width / 2 + (Math.random() - 0.5) * 50,
+                        player.y + player.height / 2 + (Math.random() - 0.5) * 50,
+                        (Math.random() - 0.5) * 5,
+                        Math.random() * 5 - 2.5,
+                        "#00ff00"
                         , 2, 0.8
                     )
                 );
