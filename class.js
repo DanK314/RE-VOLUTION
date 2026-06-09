@@ -192,7 +192,7 @@ export class Player extends Entity {
         this.skills = [
             {
                 id: 0,
-                name: "parry",
+                name: "Parry",
                 hasSub: false,
                 cooldown: 700,
                 readyAt: 0,
@@ -200,12 +200,12 @@ export class Player extends Entity {
             },
             {
                 id: 1,
-                name: "dash",
+                name: "Wind Dash",
                 hasSub: true,
                 cooldown: 700,
                 readyAt: 0,
                 sub: {
-                    name: "ultimate",
+                    name: "Wind Blast",
                     cooldown: 7000,
                     readyAt: 0
                 },
@@ -213,13 +213,13 @@ export class Player extends Entity {
             },
             {
                 id: 2,
-                name: "heal",
+                name: "Nature's Heal",
                 hasSub: true,
-                cooldown: 10000,
+                cooldown: 15000,
                 readyAt: 0,
                 sub: {
-                    name: "Super Heal",
-                    cooldown: 15000,
+                    name: "Nature's Protection",
+                    cooldown: 30000,
                     readyAt: 0
                 },
                 has: true
@@ -276,6 +276,7 @@ export class Player extends Entity {
 
     // 좌클릭: 기본 공격 발동
     attack(mouseX, mouseY) {
+        if(this.hasEffect('superHeal')) return;
         const now = Date.now();
         const cooldownReduction = this.getCooldownReduction();
         if (now < this.attackCooldownTime) return;
@@ -564,13 +565,13 @@ export class Player extends Entity {
         this.movementSlowness *= 0.9;
         //자연 회복
         if (this.hasEffect('superHeal') && this.healCoolEndTime <= now) {
-            this.hp = Math.min(this.maxHp, this.hp + 1);
+            this.hp = Math.min(this.maxHp, this.hp + 2);
             this.healCoolEndTime = now + 100;
             return;
         }
         if (this.hasEffect('heal') && this.healCoolEndTime <= now) {
             this.hp = Math.min(this.maxHp, this.hp + 1);
-            this.healCoolEndTime = now + 300;
+            this.healCoolEndTime = now + 100;
             return;
         }
         if (this.healCoolEndTime > now || this.hasEffect('bleed')) return;
