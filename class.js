@@ -193,6 +193,7 @@ export class Player extends Entity {
             {
                 id: 0,
                 name: "Parry",
+                icon: "⚔️",
                 hasSub: false,
                 cooldown: 700,
                 readyAt: 0,
@@ -201,6 +202,7 @@ export class Player extends Entity {
             {
                 id: 1,
                 name: "Wind Dash",
+                icon: "💨",
                 hasSub: true,
                 cooldown: 700,
                 readyAt: 0,
@@ -214,6 +216,7 @@ export class Player extends Entity {
             {
                 id: 2,
                 name: "Nature's Heal",
+                icon: "🔋",
                 hasSub: true,
                 cooldown: 15000,
                 readyAt: 0,
@@ -222,7 +225,7 @@ export class Player extends Entity {
                     cooldown: 30000,
                     readyAt: 0
                 },
-                has: true
+                has: false
             }
         ];
         this.selectedSkill = 0;

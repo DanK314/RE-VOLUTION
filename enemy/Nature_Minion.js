@@ -5,8 +5,8 @@ import { asset } from "../load.js";
 export class Nature_Minion extends Enemy {
     constructor(x, y) {
         super(x, y);
-        this.hp = 100;
-        this.maxHp = 100;
+        this.hp = 50;
+        this.maxHp = 50;
         this.speed = 3;
 
         this.damage = 0;

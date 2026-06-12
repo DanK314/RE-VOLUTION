@@ -305,60 +305,47 @@ function chooseStat(stat) {
     }
 }
 
-// main.js의 updateUI 함수 수정
 function updateUI() {
     hpValue.innerText = `${Math.max(0, Math.floor(player.hp))} / ${player.maxHp}`;
     expValue.innerText = `${player.exp} / ${player.maxExp}`;
     levelValue.innerText = player.level;
 
-    // 🔥 추가: 인벤토리 슬롯 업데이트
-    const slot1 = document.getElementById('slot-1');
-    const slot2 = document.getElementById('slot-2');
-    const slot3 = document.getElementById('slot-3');
+    // 스킬 슬롯 자동 처리
+    player.skills.forEach((skill, i) => {
+        const slot = document.getElementById(`slot-${i + 1}`);
+        if (!slot) return;
 
-    if (player.selectedSkill === 0) {
-        slot1.classList.add('active');
-        slot2.classList.remove('active');
-    } else {
-        slot1.classList.remove('active');
-        slot2.classList.add('active');
-    }
-    // 🔥 2번 슬롯(돌진) 잠금 및 활성화 로직
-    if (!player.skills[1].has) {
-        slot2.classList.add('locked');
-        slot2.querySelector('.icon').innerText = "🔒"; // 자물쇠 아이콘
-        slot2.querySelector('.skill-name').innerText = "잠김";
-        slot2.classList.remove('active');
-    } else {
-        slot2.classList.remove('locked');
+        const icon = slot.querySelector('.icon');
+        const name = slot.querySelector('.skill-name');
 
-        // 돌진이 해금된 상태에서만 active 클래스 적용
-        if (player.selectedSkill === 1) {
-            slot2.classList.add('active');
+        // active 초기화
+        slot.classList.remove('active');
+
+        if (!skill.has) {
+            slot.classList.add('locked');
+            icon.innerText = "🔒";
+            name.innerText = "잠김";
         } else {
-            slot2.classList.remove('active');
+            slot.classList.remove('locked');
+
+            // 스킬 정보 표시
+            icon.innerText = skill.icon ?? "?";
+            name.innerText = skill.name ?? "스킬";
+
+            if (player.selectedSkill === i) {
+                slot.classList.add('active');
+            }
         }
-    }
-    // 🔥 2번 슬롯(돌진) 잠금 및 활성화 로직
-    if (!player.skills[2].has) {
-        slot3.classList.add('locked');
-        slot3.querySelector('.icon').innerText = "🔒"; // 자물쇠 아이콘
-        slot3.querySelector('.skill-name').innerText = "잠김";
-        slot3.classList.remove('active');
-    } else {
-        slot3.classList.remove('locked');
-        if (player.selectedSkill === 2) {
-            slot3.classList.add('active');
-        } else {
-            slot3.classList.remove('active');
-        }
-    }
+    });
 
     if (statHealthValue) statHealthValue.innerText = player.stats.health;
     if (statDamageValue) statDamageValue.innerText = player.stats.damage;
     if (statSpeedValue) statSpeedValue.innerText = player.stats.speed;
     if (statRegenValue) statRegenValue.innerText = player.stats.regen;
-    if (statCooldownValue) statCooldownValue.innerText = `${Math.round(player.cooldownReduction * 100)}%`;
+    if (statCooldownValue) {
+        statCooldownValue.innerText =
+            `${Math.round(player.cooldownReduction * 100)}%`;
+    }
 
     updateSkillUI(player);
 }
@@ -544,6 +531,11 @@ function gameLoop() {
 
             // ❗ 1) 죽음 시작 트리거
             if (enemy.hp <= 0 && !enemy.dying) {
+                enemy.death?.();
+            }
+
+            // ❗ 2) 완전 삭제 조건
+            if (enemy.isDead) {
                 player.gainExp(enemy.expReward || 10);
                 if (enemy instanceof Boss_Wind || enemy instanceof Boss_Nature) {
                     // Mark this boss as defeated using the linked spawner index
@@ -554,11 +546,11 @@ function gameLoop() {
                 if (enemy instanceof Boss_Wind) {
                     player.skills[1].has = true; // 돌진 스킬 해금
                 }
-                enemy.death?.();
+                if (enemy instanceof Boss_Nature) {
+                    player.skills[2].has = true; // 회복 스킬 해금
+                }
+                return false;
             }
-
-            // ❗ 2) 완전 삭제 조건
-            if (enemy.isDead) return false;
 
             // =========================
             // AI / 물리 업데이트
@@ -585,7 +577,7 @@ function gameLoop() {
                         });
                     } else {
 
-                        enemy.update(player);
+                        enemy.update(player,(p) => projectiles.push(p));
 
                         applyPhysics(enemy);
                     }
@@ -896,7 +888,7 @@ function gameLoop() {
         camera.x += (targetX - camera.x) * camera.easing;
         camera.y += (targetY - camera.y) * camera.easing;
 
-        const maxCameraY = 300;
+        const maxCameraY = 400;
 
         if (camera.x < 0) camera.x = 0;
         if (camera.y < -150) camera.y = -150;

@@ -30,7 +30,7 @@ export class Boss_Nature extends Enemy {
         this.lastHealTime = 0;
 
         // 뿌리 공격
-        this.rootCooldown = 500;
+        this.rootCooldown = 3000;
         this.lastRootTime = 0;
 
         this.enraged = false;
