@@ -1,5 +1,6 @@
 // main.js
-import { Player, Projectile, Particle, FloatingText } from './class.js';
+import { Player, Projectile, Particle } from './class.js';
+import { FloatingText, Portal } from './worldObjects.js';
 import { applyPhysics } from './physics.js';
 import { drawMap, generateRPGMap, extractSpawners, extractRespawnPoints, getBiomeColorAtX, getBiomeAtX } from './map.js';
 import { initLoad, asset, checkAllLoaded } from './load.js';
@@ -13,7 +14,7 @@ import { Rock } from './enemy/Rock.js';
 import { playSound, playBGM, stopBGM } from './sound.js';
 import { Eagle } from './enemy/Eagle.js';
 
-import { BIOME_BOSS, BIOME_COLORS, BIOME_DESERT, BIOME_FOREST, BIOME_TOWN } from './map.js';
+import { BIOME_COLORS } from './map.js';
 
 const loadPromise = initLoad();
 
@@ -49,6 +50,9 @@ let floatingTexts = [
     new FloatingText(20338, -40, "숫자키로 바람 스킬을 선택하고 우클릭으로 대쉬해 절벽을 뛰어 넘으세요!", { triggerRadius: 200, fontSize: 18 }),
     new FloatingText(20838, 0, "===>", { triggerRadius: 500, fontSize: 30, color: "#00FFFF" }),
 ];
+let portals = [
+    new Portal(170,650,19000,500)
+]
 
 let gameAnimationFrame;
 let isGameOver = false;
@@ -175,7 +179,7 @@ function updateSkillUI(player) {
 function isPlayerInBossRoom(player) {
     if (!player) return false;
     const playerCenterX = player.x + (player.width || 0) / 2;
-    return getBiomeAtX(playerCenterX) === BIOME_BOSS;
+    return getBiomeAtX(playerCenterX) === 'boss';
 }
 
 function getBiomeMusic(x) {
@@ -407,9 +411,6 @@ function startGame(isRevive = false) {
     gameLoop();
 }
 
-// main.js - gameLoop 전체 코드
-// main.js - gameLoop 함수 완전판 전체 코드
-
 function gameLoop() {
     if (isGameOver) return;
 
@@ -497,19 +498,19 @@ function gameLoop() {
                 }
 
                 else {
-                    if (getBiomeAtX(spawner.x) === BIOME_FOREST) {
-                        // 숲 몬스터는 랜덤으로 슬라임/바위 생성
-                        if (Math.random() < 0.7) { // 슬라임이 나올 확률 70%
+                    if (getBiomeAtX(spawner.x) === 'plain') {
+                        
+                        if (Math.random() < 0.8) { 
                             enemy = new Slime(spawner.x, spawner.y);
-                        } else { // 바위는 밸런스 조정을 위해 30%로 줄임
+                        } else { 
                             enemy = new Rock(spawner.x, spawner.y);
                         }
-                    } else if (getBiomeAtX(spawner.x) === BIOME_DESERT) {
-                        // 시막 몬스터는 랜덤으로 바위/독수리 생성
-                        if (Math.random() < 0.8) {
-                            enemy = new Rock(spawner.x, spawner.y);
+                    } else if (getBiomeAtX(spawner.x) === 'forest') {
+                        
+                        if (Math.random() < 0.6) {
+                            enemy = new Slime(spawner.x, spawner.y);
                         } else {
-                            enemy = new Eagle(spawner.x, spawner.y);
+                            enemy = new Rock(spawner.x, spawner.y);
                         }
                     }
                 }
@@ -876,9 +877,18 @@ function gameLoop() {
             handleGameOver();
             return;
         }
+        // =========================
+        // 월드 오브젝트 업데이트
+        // =========================
         floatingTexts.forEach((f) => {
             f.update(player);
         });
+        portals.forEach((p) => {
+            p.update(player);
+            if(keys['f'] && p.intersects(player)){
+                p.interact(player);
+            }
+        })
         // =========================
         // 9. 카메라
         // =========================
@@ -1038,7 +1048,7 @@ function gameLoop() {
         ctx.strokeRect(rp.x, rp.y, rp.width, rp.height);
     }
 
-    const allEntities = [...enemies, ...particles, ...projectiles, ...floatingTexts, player];
+    const allEntities = [...enemies, ...particles, ...projectiles, ...floatingTexts,...portals, player];
     allEntities.forEach(e => {
 
         if (!e?.draw) return;
@@ -1052,7 +1062,7 @@ function gameLoop() {
         ) {
             return;
         }
-        if (e instanceof FloatingText) {
+        if (e instanceof FloatingText || e instanceof Portal) {
             e.draw(ctx, player);
         } else {
             e.draw(ctx);
@@ -1106,9 +1116,9 @@ function gameLoop() {
             return da < db ? a : b;
         });
 
-        playBGM(nearestBoss.musicSrc, 1000);
+        playBGM(nearestBoss.musicSrc);
     } else {
-        playBGM(getBiomeMusic(player.x), 1000);
+        playBGM(getBiomeMusic(player.x));
     }
 
     if (!isGameOver) {

@@ -14,6 +14,7 @@ export class Eagle extends Enemy {
 
         this.color = "rgba(0, 0, 0, 1)";
         this.ai = new EagleAI();
+        this.width = 100;
     }
     draw(ctx) {
         ctx.fillStyle = this.color;

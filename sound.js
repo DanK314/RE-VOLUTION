@@ -1,17 +1,18 @@
 import { asset } from "./load.js";
 
 let currentBGM = null;
+let currentBGMName = null;
 let fadeInterval = null;
 
 function clampVolume(value) {
     return Math.max(0, Math.min(1, value));
 }
 
-export function playSound(name, force) {
+export function playSound(name, force = false) {
     const audio = asset.sound[name];
 
     if (!audio) {
-        console.log('no audio named : "' + name + '"');
+        console.log(`no audio named : "${name}"`);
         return;
     }
 
@@ -20,17 +21,17 @@ export function playSound(name, force) {
     audio.currentTime = 0;
     audio.play();
 }
+export function playBGM(name, fadeTime = 500) {
+    if (!name) {
+        stopBGM(fadeTime);
+        return;
+    }
 
-export function playBGM(name, fadeTime = 1000) {
     const next = asset.sound[name];
 
     if (!next) {
-        if (currentBGM) {
-            currentBGM.pause();
-            currentBGM.currentTime = 0;
-            currentBGM = null;
-        }
         console.log('no audio named : "' + name + '"');
+        stopBGM(fadeTime);
         return;
     }
 
@@ -45,7 +46,7 @@ export function playBGM(name, fadeTime = 1000) {
 
     next.loop = true;
 
-    // 처음 재생
+    // 첫 재생
     if (!currentBGM) {
         next.volume = 0;
         next.currentTime = 0;
@@ -58,6 +59,9 @@ export function playBGM(name, fadeTime = 1000) {
     }
 
     const old = currentBGM;
+
+    // 🔥 전환 시작 시 바로 현재 BGM 갱신
+    currentBGM = next;
 
     fadeInterval = setInterval(() => {
         old.volume = clampVolume(old.volume - 0.05);
@@ -73,9 +77,8 @@ export function playBGM(name, fadeTime = 1000) {
 
             fade(next, 0, 0.99, fadeTime);
 
-            currentBGM = next;
-
             clearInterval(fadeInterval);
+            fadeInterval = null;
         }
     }, fadeTime / 20);
 }
@@ -83,41 +86,53 @@ export function playBGM(name, fadeTime = 1000) {
 function fade(audio, from, to, duration) {
     audio.volume = clampVolume(from);
 
-    const step = ((to - from) / 20);
+    const steps = 20;
+    let step = 0;
 
     const interval = setInterval(() => {
-        audio.volume = clampVolume(audio.volume + step);
+        step++;
 
-        const reached =
-            step > 0
-                ? audio.volume >= to
-                : audio.volume <= to;
+        const t = step / steps;
 
-        if (reached) {
+        audio.volume = clampVolume(
+            from + (to - from) * t
+        );
+
+        if (step >= steps) {
             audio.volume = to;
             clearInterval(interval);
         }
-    }, duration / 20);
+    }, duration / steps);
 }
 
-export function stopBGM(fadeTime = 1000) {
+export function stopBGM(fadeTime = 500) {
     if (!currentBGM) return;
 
     clearInterval(fadeInterval);
+    fadeInterval = null;
 
     const bgm = currentBGM;
 
-    fadeInterval = setInterval(() => {
-        bgm.volume = clampVolume(bgm.volume - 0.05);
+    const steps = 20;
+    let step = 0;
 
-        if (bgm.volume <= 0) {
+    fadeInterval = setInterval(() => {
+        step++;
+
+        const t = step / steps;
+
+        bgm.volume = clampVolume(0.99 * (1 - t));
+
+        if (step >= steps) {
             bgm.pause();
             bgm.currentTime = 0;
             bgm.volume = 1;
 
             currentBGM = null;
+            currentBGMName = null;
 
             clearInterval(fadeInterval);
+            fadeInterval = null;
         }
-    }, fadeTime / 20);
+    }, fadeTime / steps);
 }

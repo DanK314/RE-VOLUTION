@@ -126,8 +126,8 @@ button:hover {
     border-radius: 5px;
 }
 
-.hp-stat { color: #e74c3c; }
-.exp-stat { color: #f1c40f; }
+.hp-stat { color: #ff0000; }
+.exp-stat { color: #6aff45; }
 
 .canvas-container {
     flex: 1;
@@ -154,9 +154,9 @@ canvas {
 .game-over-title {
     font-family: 'Cinzel', serif; /* 오버 화면에도 통일감 부여 */
     font-size: 5rem;
-    color: #c0392b;
+    color: #ff0000;
     margin-bottom: 40px;
-    text-shadow: 0 0 20px rgba(192, 57, 43, 0.7);
+    text-shadow: 0 0 20px rgba(192, 0, 0, 0.7);
     letter-spacing: 5px;
 }
 

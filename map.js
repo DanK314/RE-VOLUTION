@@ -51,46 +51,43 @@ const townChunk = stringToMap(townString);
 const bossChunk = stringToMap(bossString);
 
 // 🎨 Biome System
-export const BIOME_TOWN = 'town';
+export const BIOME_TOWN = 'town'; //시작지점
+export const BIOME_PLAIN = 'plain';
 export const BIOME_FOREST = 'forest';
-export const BIOME_DESERT = 'desert';
 export const BIOME_BOSS = 'boss';
 
 // 중간 필드용 랜덤 청크들 (M을 곳곳에 배치)
 // 🔥 모든 청크가 정확히 12줄이어야 마을/보스맵과 자연스럽게 연결됩니다!
 const mapChunks = {
-    forest: [
-        // 1. 점프 발판 지형
+    plain: [
         `
     ................
     ................
     ................
     ................
-    .......MM.......
-    .....######.....
     ................
-    ...M#.......M...
-    .####......####.
     ................
+    ................
+    ................
+    ..MM............
+    ######..........
+    ###########.M.##
+    ################
+    `,
+        `
+    ................
+    ................
+    ................
+    ................
+    ................
+    ................
+    ................
+    ................
+    .........##.....
+    ###.MMM.######..
     ################
     ################
     `,
-        // 2. 만드셨던 거대한 산 지형 (위쪽에 빈 공간 4줄을 추가해 12줄로 맞춤)
-        `
-    ................
-    ................
-    ................
-    ................
-    .......MMMM.....
-    .....####.......
-    ..############..
-    ################
-    ################
-    ################
-    ################
-    ################
-    `,
-        // 3. 평지와 몬스터 군단 지형
         `
     ................
     ................
@@ -100,25 +97,25 @@ const mapChunks = {
     ................
     ................
     ................
-    ....MMMMMMMM#...
-    .......##.......
-    ################
+    ..............M.
+    M.....M.......##
+    #....#####...###
     ################
     `
     ].map(stringToMap),
-    desert: [
+    forest: [
         `
         ................
         ................
-        .........###....
-        ..####..........
         ................
         ................
         ................
         ................
-        ...#......##....
-        ..##.......###..
-        .###.MMMMMM.####
+        ................
+        ...M............
+        ...#.......M....
+        .M###......###M.
+        .####.M....#####
         ################
         `,
         `
@@ -131,8 +128,8 @@ const mapChunks = {
         ................
         ................
         ...M........M...
-        ..###..M...###..
-        .#######...#####
+        ..###..M...###.M
+        .#######..M#####
         ################
         `,
         `
@@ -140,13 +137,13 @@ const mapChunks = {
         ................
         ................
         ................
-        .....###.##.....
-        ....##...###....
-        ...##....####...
-        ..###....####...
-        ..##.....####...
-        ..##.....#####..
-        .###.MMMMMM.####
+        ................
+        ................
+        ................
+        ................
+        ................
+        ..M..........M..
+        .###..M.M.M.####
         ################
         `,
     ].map(stringToMap)
@@ -163,23 +160,23 @@ export const BIOME_COLORS = {
         mid: '#4E6378',
         near: '#263238'
     },
-    forest: {
-        ground: '#603e00',
+    plain: {
+        ground: '#b27400',
         stroke: '#1a3009',
-        bgTop: '#0d1f0d',
-        bgBottom: '#1a4d1a',
+        bgTop: '#60d7cd',
+        bgBottom: '#0ed256',
         far: '#3d7d3d',
         mid: '#2d6d2d',
         near: '#1a4d1a'
     },
-    desert: {
-        ground: '#daa520',
+    forest: {
+        ground: '#755000',
         stroke: '#b8860b',
-        bgTop: '#f5deb3',
-        bgBottom: '#f0e68c',
-        far: '#deb887',
-        mid: '#d4a574',
-        near: '#cd853f'
+        bgTop: '#338000',
+        bgBottom: '#0c3a15',
+        far: '#00c407',
+        mid: '#288f00',
+        near: '#135100'
     },
     boss: {
         ground: '#8b0000',
@@ -193,16 +190,24 @@ export const BIOME_COLORS = {
 };
 
 let biomeRegions = [
-    { startX: 0, endX: 16, biome: BIOME_TOWN },
-    { startX: 16, endX: 256, biome: BIOME_FOREST },
-    { startX: 256, endX: 272, biome: BIOME_BOSS },
-    { startX: 272, endX: 512, biome: BIOME_DESERT },
-    { startX: 512, endX: 528, biome: BIOME_BOSS }
-]; // Array of {startX, endX, biome}
-const biomeSections = [
-    { biome: BIOME_FOREST, chunks: 15 },
-    { biome: BIOME_DESERT, chunks: 15 }
+    {
+        biome: BIOME_TOWN,
+        type: 'town'
+    },
+    {
+        biome: BIOME_PLAIN,
+        chunks: 5
+    },
+    {
+        biome: BIOME_FOREST,
+        chunks: 10
+    },
+    {
+        biome: BIOME_BOSS,
+        type: 'boss'
+    }
 ];
+let generatedBiomeRegions = [];
 function clamp(value, min, max) {
     return Math.min(Math.max(value, min), max);
 }
@@ -211,7 +216,7 @@ export function getBiomeColorAtX(x, key) {
 
     const col = x / TILE_SIZE;
 
-    const region = biomeRegions.find(
+    const region = generatedBiomeRegions.find(
         region =>
             col >= region.startX &&
             col < region.endX
@@ -223,12 +228,11 @@ export function getBiomeColorAtX(x, key) {
 
     return BIOME_COLORS[region.biome][key];
 }
-
 export function getBiomeAtX(x) {
     const tile = Math.floor(x / TILE_SIZE);
 
-    for (let i = 0; i < biomeRegions.length; i++) {
-        const b = biomeRegions[i];
+    for (let i = 0; i < generatedBiomeRegions.length; i++) {
+        const b = generatedBiomeRegions[i];
 
         if (tile >= b.startX && tile < b.endX) {
             return b.biome;
@@ -237,77 +241,86 @@ export function getBiomeAtX(x) {
 
     return BIOME_TOWN;
 }
-
 export function generateRPGMap() {
 
     let newMap = [];
     const mapHeight = 12;
-    biomeRegions = [];
+
+    generatedBiomeRegions = [];
+
     let currentX = 0;
 
     for (let r = 0; r < mapHeight; r++) {
         newMap[r] = [];
     }
 
-    // =========================
-    // 시작 마을
-    // =========================
-    biomeRegions.push({ startX: currentX, endX: currentX + townChunk[0].length, biome: BIOME_TOWN });
-
-    for (let r = 0; r < mapHeight; r++) {
-        newMap[r] = newMap[r].concat(townChunk[r]);
-    }
-    currentX += townChunk[0].length;
-
-    // =========================
-    // 랜덤 구간
-    // =========================
-
-    for (const section of biomeSections) {
+    for (const section of biomeRegions) {
 
         const sectionStart = currentX;
 
-        // 청크 생성
-        for (let i = 0; i < section.chunks; i++) {
-
-            const randomChunk =
-                mapChunks[section.biome][
-                Math.floor(Math.random() * mapChunks[section.biome].length)
-                ];
+        // 시작 마을
+        if (section.type === 'town') {
 
             for (let r = 0; r < mapHeight; r++) {
-                newMap[r] = newMap[r].concat(randomChunk[r]);
+                newMap[r] = newMap[r].concat(townChunk[r]);
             }
 
-            currentX += randomChunk[0].length;
+            currentX += townChunk[0].length;
         }
 
-        // biome region은 섹션 단위로 딱 1개만
-        biomeRegions.push({
+        // 보스맵
+        else if (section.type === 'boss') {
+
+            for (let r = 0; r < mapHeight; r++) {
+                newMap[r] = newMap[r].concat(bossChunk[r]);
+            }
+
+            currentX += bossChunk[0].length;
+        }
+
+        // 일반 바이옴
+        else {
+
+            const chunks = section.chunks ?? 1;
+
+            for (let i = 0; i < chunks; i++) {
+
+                const chunkList = mapChunks[section.biome];
+
+                if (!chunkList) {
+                    console.warn(
+                        `No chunks for biome "${section.biome}"`
+                    );
+                    continue;
+                }
+
+                const randomChunk =
+                    chunkList[
+                        Math.floor(
+                            Math.random() * chunkList.length
+                        )
+                    ];
+
+                for (let r = 0; r < mapHeight; r++) {
+                    newMap[r] =
+                        newMap[r].concat(randomChunk[r]);
+                }
+
+                currentX += randomChunk[0].length;
+            }
+        }
+
+        generatedBiomeRegions.push({
             startX: sectionStart,
             endX: currentX,
             biome: section.biome
         });
-
-        // 보스맵
-        const bossStart = currentX;
-
-        for (let r = 0; r < mapHeight; r++) {
-            newMap[r] = newMap[r].concat(bossChunk[r]);
-        }
-
-        currentX += bossChunk[0].length;
-
-        biomeRegions.push({
-            startX: bossStart,
-            endX: currentX,
-            biome: BIOME_BOSS
-        });
     }
 
     currentMap = newMap;
+
     console.table(
-        biomeRegions.map(r => ({
+        generatedBiomeRegions.map(r => ({
             start: r.startX,
             end: r.endX,
             biome: r.biome

@@ -149,7 +149,12 @@ const assetManifest = {
             name : 'town_bgm',
             path : './asset/sounds/town_bgm.wav',
             volume : 0.1
-        }
+        },
+        {
+            name : 'forest_bgm',
+            path : './asset/sounds/forest_bgm.wav',
+            volume : 0.1
+        },
     ]
 };
 
