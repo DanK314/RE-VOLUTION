@@ -1,6 +1,6 @@
 // physics.js
 
-import { getTileAt, TILE_SIZE, TILE_GROUND } from './map.js';
+import { getTileAt, TILE_SIZE, TILE_GROUND, TILE_BOSS_WALL } from './map.js';
 
 const GRAVITY = 0.6; 
 const FRICTION = 0.8; 
@@ -16,7 +16,7 @@ export function getAngle(mx, my, px, py) {
 
     return rad;
 }
-export function applyPhysics(entity) {
+export function applyPhysics(entity, isBossAlive) {
     if (!entity.ignoreGravity) entity.vy += GRAVITY;
     if (!entity.ignoreFriction) entity.vx *= FRICTION;
     
@@ -41,12 +41,12 @@ export function applyPhysics(entity) {
     entity.x += entity.vx;
     
     if (entity.vx > 0) {
-        if (isSolid(entity.x + entity.width, entity.y) || isSolid(entity.x + entity.width, entity.y + entity.height - 1)) {
+        if (isSolid(entity.x + entity.width, entity.y, isBossAlive) || isSolid(entity.x + entity.width, entity.y + entity.height - 1,isBossAlive)) {
             entity.x = Math.floor((entity.x + entity.width) / TILE_SIZE) * TILE_SIZE - entity.width;
             entity.vx = 0;
         }
     } else if (entity.vx < 0) {
-        if (isSolid(entity.x, entity.y) || isSolid(entity.x, entity.y + entity.height - 1)) {
+        if (isSolid(entity.x, entity.y, isBossAlive) || isSolid(entity.x, entity.y + entity.height - 1, isBossAlive)) {
             entity.x = Math.floor(entity.x / TILE_SIZE) * TILE_SIZE + TILE_SIZE;
             entity.vx = 0;
         }
@@ -58,13 +58,13 @@ export function applyPhysics(entity) {
     entity.y += entity.vy;
 
     if (entity.vy > 0) {
-        if (isSolid(entity.x, entity.y + entity.height) || isSolid(entity.x + entity.width - 1, entity.y + entity.height)) {
+        if (isSolid(entity.x, entity.y + entity.height, isBossAlive) || isSolid(entity.x + entity.width - 1, entity.y + entity.height, isBossAlive)) {
             entity.y = Math.floor((entity.y + entity.height) / TILE_SIZE) * TILE_SIZE - entity.height;
             entity.vy = 0;
             entity.isGrounded = true; 
         }
     } else if (entity.vy < 0) {
-        if (isSolid(entity.x, entity.y) || isSolid(entity.x + entity.width - 1, entity.y)) {
+        if (isSolid(entity.x, entity.y,isBossAlive) || isSolid(entity.x + entity.width - 1, entity.y, isBossAlive)) {
             entity.y = Math.floor(entity.y / TILE_SIZE) * TILE_SIZE + TILE_SIZE;
             entity.vy = 0; 
         }
@@ -78,10 +78,10 @@ export function applyPhysics(entity) {
     const yBottom = entity.y + entity.height - 2;
 
     // 캐릭터의 바로 왼쪽(1px)이나 오른쪽(1px)에 벽이 있는지 확인
-    if (isSolid(entity.x - 1, yTop) || isSolid(entity.x - 1, yBottom)) {
+    if (isSolid(entity.x - 1, yTop, isBossAlive) || isSolid(entity.x - 1, yBottom, isBossAlive)) {
         entity.isTouchingLeftWall = true;
     }
-    if (isSolid(entity.x + entity.width, yTop) || isSolid(entity.x + entity.width, yBottom)) {
+    if (isSolid(entity.x + entity.width, yTop, isBossAlive) || isSolid(entity.x + entity.width, yBottom, isBossAlive)) {
         entity.isTouchingRightWall = true;
     }
 
@@ -93,6 +93,6 @@ export function applyPhysics(entity) {
     }
 }
 
-function isSolid(x, y) {
-    return getTileAt(x, y) === TILE_GROUND;
+function isSolid(x, y,isBossAlive) {
+    return getTileAt(x, y) === TILE_GROUND || (isBossAlive && getTileAt(x,y) === TILE_BOSS_WALL);
 }

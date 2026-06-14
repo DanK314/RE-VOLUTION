@@ -6,6 +6,7 @@ export const TILE_GROUND = 1;
 export const TILE_SPAWNER = 2;       // 일반 몹 (M)
 export const TILE_BOSS_SPAWNER = 3;  // 보스 (B) 🔥 추가
 export const TILE_SPAWNPOINT = 4;
+export const TILE_BOSS_WALL = 5;
 
 function stringToMap(str) {
     return str.trim().split('\n').map(row =>
@@ -14,6 +15,7 @@ function stringToMap(str) {
             if (char === 'M') return TILE_SPAWNER;
             if (char === 'B') return TILE_BOSS_SPAWNER; // 🔥 B 인식
             if (char === 'S') return TILE_SPAWNPOINT;
+            if (char === 'W') return TILE_BOSS_WALL;
             return TILE_AIR;
         })
     );
@@ -33,18 +35,18 @@ const townString = `
 ################
 `;
 const bossString = `
-.#############.#
-.#.............#
-.#.............#
-.#.............#
-.#.............#
-.#.............#
-.##............#
-.#...###.......#
-.#........#....#
-.S......B...####
-################
-################
+#####################
+..#.............B...W
+..#.................W
+..#.................W
+..#.........###...###
+..#....##...........#
+..##................#
+..#...###...........#
+..#........#........#
+..S..........########
+#####################
+#####################
 `;
 
 const townChunk = stringToMap(townString);
@@ -296,9 +298,9 @@ export function generateRPGMap() {
 
                 const randomChunk =
                     chunkList[
-                        Math.floor(
-                            Math.random() * chunkList.length
-                        )
+                    Math.floor(
+                        Math.random() * chunkList.length
+                    )
                     ];
 
                 for (let r = 0; r < mapHeight; r++) {
@@ -432,6 +434,27 @@ export function drawMap(
                     TILE_SIZE
                 );
                 */
+            } else if (currentMap[row][col] === TILE_BOSS_WALL) {
+
+                const x = col * TILE_SIZE;
+                const y = row * TILE_SIZE;
+
+                const pulse =
+                    0.5 +
+                    Math.sin(Date.now() * 0.005) * 0.3;
+
+                ctx.globalAlpha = pulse;
+
+                ctx.fillStyle = "rgb(" + 255*pulse + ",0,255)";
+
+                ctx.fillRect(
+                    x,
+                    y,
+                    TILE_SIZE,
+                    TILE_SIZE
+                );
+
+                ctx.globalAlpha = 1;
             }
         }
     }

@@ -51,7 +51,7 @@ let floatingTexts = [
     new FloatingText(20838, 0, "===>", { triggerRadius: 500, fontSize: 30, color: "#00FFFF" }),
 ];
 let portals = [
-    new Portal(170,650,19000,500)
+    new Portal(170, 650, 19000, 500)
 ]
 
 let gameAnimationFrame;
@@ -413,7 +413,9 @@ function startGame(isRevive = false) {
 
 function gameLoop() {
     if (isGameOver) return;
-
+    const activeBosses = enemies.filter(
+        e => e.isBoss && !e.dying && !e.isDead
+    );
     // =========================
     // 1. 마우스 월드 좌표
     // =========================
@@ -421,10 +423,13 @@ function gameLoop() {
     mouse.y = screenMouse.y + camera.y;
 
     if (!isStatUpgradeOpen) {
+
+
+
         // =========================
         // 2. 플레이어 물리 & 업데이트
         // =========================
-        applyPhysics(player);
+        applyPhysics(player, (activeBosses.length > 0));
 
         if (!player.isDashing) {
             player.dashHitList = [];
@@ -499,14 +504,14 @@ function gameLoop() {
 
                 else {
                     if (getBiomeAtX(spawner.x) === 'plain') {
-                        
-                        if (Math.random() < 0.8) { 
+
+                        if (Math.random() < 0.8) {
                             enemy = new Slime(spawner.x, spawner.y);
-                        } else { 
+                        } else {
                             enemy = new Rock(spawner.x, spawner.y);
                         }
                     } else if (getBiomeAtX(spawner.x) === 'forest') {
-                        
+
                         if (Math.random() < 0.6) {
                             enemy = new Slime(spawner.x, spawner.y);
                         } else {
@@ -578,9 +583,9 @@ function gameLoop() {
                         });
                     } else {
 
-                        enemy.update(player,(p) => projectiles.push(p));
+                        enemy.update(player, (p) => projectiles.push(p));
 
-                        applyPhysics(enemy);
+                        applyPhysics(enemy, (activeBosses.length > 0));
                     }
                 }
             }
@@ -885,7 +890,7 @@ function gameLoop() {
         });
         portals.forEach((p) => {
             p.update(player);
-            if(keys['f'] && p.intersects(player)){
+            if (keys['f'] && p.intersects(player)) {
                 p.interact(player);
             }
         })
@@ -1048,7 +1053,7 @@ function gameLoop() {
         ctx.strokeRect(rp.x, rp.y, rp.width, rp.height);
     }
 
-    const allEntities = [...enemies, ...particles, ...projectiles, ...floatingTexts,...portals, player];
+    const allEntities = [...enemies, ...particles, ...projectiles, ...floatingTexts, ...portals, player];
     allEntities.forEach(e => {
 
         if (!e?.draw) return;
@@ -1103,9 +1108,6 @@ function gameLoop() {
     // 12.사운드
     // =========================
 
-    const activeBosses = enemies.filter(
-        e => e.isBoss && !e.dying && !e.isDead
-    );
     if (
         isPlayerInBossRoom(player) &&
         activeBosses.length > 0

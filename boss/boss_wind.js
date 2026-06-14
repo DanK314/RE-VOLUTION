@@ -36,7 +36,7 @@ export class Boss_Wind extends Enemy {
         this.spawnX = x;
         this.spawnY = y;
 
-        this.detectRadius = 900;
+        this.detectRadius = 300;
         this.forgetRadius = 1600;
 
         this.isReturningHome = false;
@@ -113,6 +113,7 @@ export class Boss_Wind extends Enemy {
 
             return;
         }
+        this.detectRadius = 900;
         // =====================================
         // 풍압 패시브
         // =====================================
@@ -158,7 +159,7 @@ export class Boss_Wind extends Enemy {
 
                 this.dashCount++;
 
-                if (this.dashCount < 3) {
+                if (this.dashCount < (this.phase === 1 ? 3 : 5)) {
 
                     const angle = Math.atan2(dy, dx);
 
@@ -216,21 +217,19 @@ export class Boss_Wind extends Enemy {
             // 패턴 선택
             if (now > this.patternCooldown) {
 
-                const rand = Math.random();
-
                 // =========================
                 // 패턴 1
                 // 탄환 + 돌진
                 // =========================
 
-                if (rand < 0.4) {
+                if (dist > 300 && dist < 500) {
 
                     this.state = "spread_dash";
 
                     const angle =
                         Math.atan2(dy, dx);
 
-                    for (let i = -2; i <= 2; i++) {
+                    for (let i = (this.phase === 1 ? -2:-3); i <= (this.phase === 1 ? 2:3); i++) {
 
                         const a =
                             angle + i * 0.25;
@@ -256,7 +255,7 @@ export class Boss_Wind extends Enemy {
                 // 연사
                 // =========================
 
-                else if (rand < 0.75) {
+                else if (dist < 300) {
 
                     this.state = "rapid_fire";
 
@@ -291,7 +290,7 @@ export class Boss_Wind extends Enemy {
 
                         shots++;
 
-                    }, 120);
+                    }, 100);
 
                     this.stateEndTime =
                         now + 900;
@@ -347,10 +346,10 @@ export class Boss_Wind extends Enemy {
                     Math.atan2(dy, dx);
 
                 this.vx =
-                    Math.cos(angle) * 16;
+                    Math.cos(angle) * 24;
 
                 this.vy =
-                    Math.sin(angle) * 16;
+                    Math.sin(angle) * 24;
 
                 playSound('dash',true);
             }
